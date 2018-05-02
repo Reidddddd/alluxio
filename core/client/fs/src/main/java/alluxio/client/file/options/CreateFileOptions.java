@@ -68,8 +68,9 @@ public final class CreateFileOptions {
     }
     mWriteTier = Configuration.getInt(PropertyKey.USER_FILE_WRITE_TIER_DEFAULT);
     mWriteType = Configuration.getEnum(PropertyKey.USER_FILE_WRITE_TYPE_DEFAULT, WriteType.class);
-    mTtl = Constants.NO_TTL;
-    mTtlAction = TtlAction.DELETE;
+    mTtl = Configuration.getLong(PropertyKey.USER_FILE_WRITE_CACHE_TTL_MS);
+    mTtlAction = Configuration.getEnum(PropertyKey.USER_FILE_WRITE_CACHE_TTL_EXPIRED_ACTION,
+        TtlAction.class);
     mMode = Mode.defaults().applyFileUMask();
   }
 

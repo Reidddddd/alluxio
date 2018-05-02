@@ -11,8 +11,10 @@
 
 package alluxio.master.file.options;
 
+import alluxio.Constants;
 import alluxio.underfs.UfsStatus;
 
+import alluxio.wire.TtlAction;
 import com.google.common.base.Objects;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -26,6 +28,8 @@ public final class LoadMetadataOptions {
   private boolean mCreateAncestors;
   private boolean mLoadDirectChildren;
   private UfsStatus mUfsStatus;
+  private long mTtl;
+  private TtlAction mAction;
 
   /**
    * @return the default {@link LoadMetadataOptions}
@@ -38,6 +42,8 @@ public final class LoadMetadataOptions {
     mCreateAncestors = false;
     mLoadDirectChildren = false;
     mUfsStatus = null;
+    mTtl = Constants.NO_TTL;
+    mAction = TtlAction.DELETE;
   }
 
   /**
@@ -62,6 +68,20 @@ public final class LoadMetadataOptions {
    */
   public boolean isLoadDirectChildren() {
     return mLoadDirectChildren;
+  }
+
+  /**
+   * @return the time to live of an inode
+   */
+  public long getTtl() {
+    return mTtl;
+  }
+
+  /**
+   * @return the action after ttl is expired
+   */
+  public TtlAction getTtlAction() {
+    return mAction;
   }
 
   /**
@@ -99,6 +119,28 @@ public final class LoadMetadataOptions {
     return this;
   }
 
+  /**
+   * Sets the ttl of a path
+   *
+   * @param ttl
+   * @return the updated object
+   */
+  public LoadMetadataOptions setTtl(long ttl) {
+    mTtl = ttl;
+    return this;
+  }
+
+  /**
+   * Sets the action after ttl expired
+   *
+   * @param ttlAction
+   * @return the updated object
+   */
+  public LoadMetadataOptions setTtlAction(TtlAction ttlAction) {
+    mAction = ttlAction;
+    return this;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -110,18 +152,23 @@ public final class LoadMetadataOptions {
     LoadMetadataOptions that = (LoadMetadataOptions) o;
     return Objects.equal(mCreateAncestors, that.mCreateAncestors)
         && Objects.equal(mLoadDirectChildren, that.mLoadDirectChildren)
-        && Objects.equal(mUfsStatus, that.mUfsStatus);
+        && Objects.equal(mUfsStatus, that.mUfsStatus)
+        && Objects.equal(mTtl, that.mTtl)
+        && Objects.equal(mAction, that.mAction);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(mCreateAncestors, mLoadDirectChildren, mUfsStatus);
+    return Objects.hashCode(mCreateAncestors, mLoadDirectChildren, mUfsStatus, mTtl, mAction);
   }
 
   @Override
   public String toString() {
     return Objects.toStringHelper(this).add("createAncestors", mCreateAncestors)
         .add("loadDirectChildren", mLoadDirectChildren)
-        .add("ufsStatus", mUfsStatus).toString();
+        .add("ufsStatus", mUfsStatus)
+        .add("ttl", mTtl)
+        .add("ttlAction", mAction)
+        .toString();
   }
 }

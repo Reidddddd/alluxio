@@ -11,9 +11,11 @@
 
 package alluxio.master.file.options;
 
+import alluxio.Constants;
 import alluxio.thrift.GetStatusTOptions;
 import alluxio.wire.LoadMetadataType;
 
+import alluxio.wire.TtlAction;
 import com.google.common.base.Objects;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -24,6 +26,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 @NotThreadSafe
 public final class GetStatusOptions {
   private LoadMetadataType mLoadMetadataType;
+  private long mTtl;
+  private TtlAction mAction;
 
   /**
    * @return the default {@link GetStatusOptions}
@@ -34,6 +38,8 @@ public final class GetStatusOptions {
 
   private GetStatusOptions() {
     mLoadMetadataType = LoadMetadataType.Once;
+    mTtl = Constants.NO_TTL;
+    mAction = TtlAction.DELETE;
   }
 
   /**
@@ -46,6 +52,8 @@ public final class GetStatusOptions {
     if (options.isSetLoadMetadataType()) {
       mLoadMetadataType = LoadMetadataType.fromThrift(options.getLoadMetadataType());
     }
+    mTtl = options.getTtl();
+    mAction = TtlAction.fromThrift(options.getTtlAction());
   }
 
   /**
@@ -53,6 +61,20 @@ public final class GetStatusOptions {
    */
   public LoadMetadataType getLoadMetadataType() {
     return mLoadMetadataType;
+  }
+
+  /**
+   * @return time to live
+   */
+  public long getTtl() {
+    return mTtl;
+  }
+
+  /**
+   * @return action after ttl expired
+   */
+  public TtlAction getTtlAction() {
+    return mAction;
   }
 
   /**
@@ -66,6 +88,28 @@ public final class GetStatusOptions {
     return this;
   }
 
+  /**
+   * Sets the {@link GetStatusOptions#mTtl}.
+   *
+   * @param ttl time to live
+   * @return the updated options
+   */
+  public GetStatusOptions setTtl(long ttl) {
+    mTtl = ttl;
+    return this;
+  }
+
+  /**
+   * Sets the {@link GetStatusOptions#mAction}.
+   *
+   * @param ttlAction action after ttl expired
+   * @return the updated options
+   */
+  public GetStatusOptions setTtlAction(TtlAction ttlAction) {
+    mAction = ttlAction;
+    return this;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -75,18 +119,22 @@ public final class GetStatusOptions {
       return false;
     }
     GetStatusOptions that = (GetStatusOptions) o;
-    return Objects.equal(mLoadMetadataType, that.mLoadMetadataType);
+    return Objects.equal(mLoadMetadataType, that.mLoadMetadataType) &&
+        Objects.equal(mTtl, that.mTtl) &&
+        Objects.equal(mAction, that.mAction);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hashCode(mLoadMetadataType);
+    return Objects.hashCode(mLoadMetadataType, mTtl, mAction);
   }
 
   @Override
   public String toString() {
     return Objects.toStringHelper(this)
         .add("loadMetadataType", mLoadMetadataType.toString())
+        .add("ttl", mTtl)
+        .add("ttlAction", mAction.toString())
         .toString();
   }
 }

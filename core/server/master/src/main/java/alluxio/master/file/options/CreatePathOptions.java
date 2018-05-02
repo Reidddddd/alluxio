@@ -11,8 +11,10 @@
 
 package alluxio.master.file.options;
 
+import alluxio.Constants;
 import alluxio.security.authorization.Mode;
 
+import alluxio.wire.TtlAction;
 import com.google.common.base.Objects;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -33,6 +35,8 @@ public abstract class CreatePathOptions<T> {
   // TODO(peis): Rename this to mCreateAncestors.
   protected boolean mRecursive;
   protected boolean mMetadataLoad;
+  protected long mTtl;
+  protected TtlAction mTtlAction;
 
   protected CreatePathOptions() {
     mMountPoint = false;
@@ -43,6 +47,8 @@ public abstract class CreatePathOptions<T> {
     mPersisted = false;
     mRecursive = false;
     mMetadataLoad = false;
+    mTtl = Constants.NO_TTL;
+    mTtlAction = TtlAction.DELETE;
   }
 
   protected abstract T getThis();
@@ -102,6 +108,21 @@ public abstract class CreatePathOptions<T> {
    */
   public boolean isMetadataLoad() {
     return mMetadataLoad;
+  }
+
+  /**
+   * @return the TTL (time to live) value; it identifies duration (in seconds) the created file
+   *         should be kept around before it is automatically deleted
+   */
+  public long getTtl() {
+    return mTtl;
+  }
+
+  /**
+   * @return action the {@link TtlAction} after TTL expired
+   */
+  public TtlAction getTtlAction() {
+    return mTtlAction;
   }
 
   /**
@@ -180,6 +201,25 @@ public abstract class CreatePathOptions<T> {
     return getThis();
   }
 
+  /**
+   * @param ttl the TTL (time to live) value to use; it identifies duration (in milliseconds) the
+   *        created file should be kept around before it is automatically deleted
+   * @return the updated options object
+   */
+  public T setTtl(long ttl) {
+    mTtl = ttl;
+    return getThis();
+  }
+
+  /**
+   * @param ttlAction the {@link TtlAction}; It informs the action to take when Ttl is expired;
+   * @return the updated options object
+   */
+  public T setTtlAction(TtlAction ttlAction) {
+    mTtlAction = ttlAction;
+    return getThis();
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -196,14 +236,16 @@ public abstract class CreatePathOptions<T> {
         && Objects.equal(mPersisted, that.mPersisted)
         && Objects.equal(mRecursive, that.mRecursive)
         && Objects.equal(mMetadataLoad, that.mMetadataLoad)
-        && mOperationTimeMs == that.mOperationTimeMs;
+        && mOperationTimeMs == that.mOperationTimeMs
+        && mTtl == that.mTtl
+        && Objects.equal(mTtlAction, that.mTtlAction);
   }
 
   @Override
   public int hashCode() {
     return Objects
         .hashCode(mMountPoint, mOwner, mGroup, mMode, mPersisted, mRecursive, mMetadataLoad,
-            mOperationTimeMs);
+            mOperationTimeMs, mTtl, mTtlAction);
   }
 
   protected Objects.ToStringHelper toStringHelper() {
@@ -215,6 +257,8 @@ public abstract class CreatePathOptions<T> {
         .add("mode", mMode)
         .add("persisted", mPersisted)
         .add("recursive", mRecursive)
-        .add("metadataLoad", mMetadataLoad);
+        .add("metadataLoad", mMetadataLoad)
+        .add("ttl", mTtl)
+        .add("ttlAction", mTtlAction);
   }
 }
