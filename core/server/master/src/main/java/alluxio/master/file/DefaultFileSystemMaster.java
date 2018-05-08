@@ -2195,9 +2195,12 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
     try (InodeLockList lockList = mInodeTree.lockDescendants(inodePath, InodeTree.LockMode.WRITE)) {
       freeInodes.addAll(lockList.getInodes());
       TempInodePathForDescendant tempInodePath = new TempInodePathForDescendant(inodePath);
+      DeleteOptions deleteOptions = DeleteOptions.defaults().setAlluxioOnly(true);
       // We go through each inode.
       for (int i = freeInodes.size() - 1; i >= 0; i--) {
         Inode<?> freeInode = freeInodes.get(i);
+        // the path to inode for getPath should already be locked.
+        tempInodePath.setDescendant(freeInode, mInodeTree.getPath(freeInode));
 
         if (freeInode.isFile()) {
           if (freeInode.getPersistenceState() != PersistenceState.PERSISTED) {
@@ -2209,8 +2212,6 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
               throw new UnexpectedAlluxioException(ExceptionMessage.CANNOT_FREE_PINNED_FILE
                   .getMessage(mInodeTree.getPath(freeInode)));
             }
-            // the path to inode for getPath should already be locked.
-            tempInodePath.setDescendant(freeInode, mInodeTree.getPath(freeInode));
             SetAttributeOptions setAttributeOptions =
                 SetAttributeOptions.defaults().setRecursive(false).setPinned(false);
             setAttributeInternal(tempInodePath, false, opTimeMs, setAttributeOptions);
@@ -2218,6 +2219,16 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
           }
           // Remove corresponding blocks from workers.
           mBlockMaster.removeBlocks(((InodeFile) freeInode).getBlockIds(), false /* delete */);
+          deleteOptions.setRecursive(false);
+        } else {
+          deleteOptions.setRecursive(true);
+        }
+
+        // Delete inodes
+        if (inode.getId() == freeInode.getId()) {
+          mInodeTree.deleteInode(tempInodePath, opTimeMs, deleteOptions, journalContext);
+        } else {
+          mInodeTree.deleteInode(tempInodePath, opTimeMs, deleteOptions, NoopJournalContext.INSTANCE);
         }
       }
     }
