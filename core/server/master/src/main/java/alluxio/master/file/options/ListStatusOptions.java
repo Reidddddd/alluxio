@@ -39,7 +39,7 @@ public final class ListStatusOptions {
   private ListStatusOptions() {
     mLoadMetadataType = LoadMetadataType.Once;
     mTtl = Constants.NO_TTL;
-    mTtlAction = TtlAction.DELETE;
+    mTtlAction = TtlAction.FREE;
   }
 
   /**
@@ -54,8 +54,14 @@ public final class ListStatusOptions {
     } else if (!options.isLoadDirectChildren()) {
       mLoadMetadataType = LoadMetadataType.Never;
     }
-    mTtl = options.getTtl();
-    mTtlAction = TtlAction.fromThrift(options.getTtlAction());
+    mTtl = Constants.NO_TTL;
+    mTtlAction = TtlAction.FREE;
+    if (options.isSetTtl()) {
+      mTtl = options.getTtl();
+    }
+    if (options.isSetTtlAction()) {
+      mTtlAction = TtlAction.fromThrift(options.getTtlAction());
+    }
   }
 
   /**

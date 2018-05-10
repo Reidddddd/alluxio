@@ -27,7 +27,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 public final class GetStatusOptions {
   private LoadMetadataType mLoadMetadataType;
   private long mTtl;
-  private TtlAction mAction;
+  private TtlAction mTtlAction;
 
   /**
    * @return the default {@link GetStatusOptions}
@@ -39,7 +39,7 @@ public final class GetStatusOptions {
   private GetStatusOptions() {
     mLoadMetadataType = LoadMetadataType.Once;
     mTtl = Constants.NO_TTL;
-    mAction = TtlAction.DELETE;
+    mTtlAction = TtlAction.FREE;
   }
 
   /**
@@ -52,8 +52,14 @@ public final class GetStatusOptions {
     if (options.isSetLoadMetadataType()) {
       mLoadMetadataType = LoadMetadataType.fromThrift(options.getLoadMetadataType());
     }
-    mTtl = options.getTtl();
-    mAction = TtlAction.fromThrift(options.getTtlAction());
+    mTtl = Constants.NO_TTL;
+    mTtlAction = TtlAction.FREE;
+    if (options.isSetTtl()) {
+      mTtl = options.getTtl();
+    }
+    if (options.isSetTtlAction()) {
+      mTtlAction = TtlAction.fromThrift(options.getTtlAction());
+    }
   }
 
   /**
@@ -74,7 +80,7 @@ public final class GetStatusOptions {
    * @return action after ttl expired
    */
   public TtlAction getTtlAction() {
-    return mAction;
+    return mTtlAction;
   }
 
   /**

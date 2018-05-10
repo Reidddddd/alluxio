@@ -2532,6 +2532,7 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
     }
     if (!inodeExists || loadDirectChildren) {
       try {
+        LOG.info("Load meta from ufs. Options: {}, path: {}", options, inodePath.getUri());
         loadMetadataAndJournal(inodePath, options, journalContext);
       } catch (Exception e) {
         // NOTE, this may be expected when client tries to get info (e.g. exists()) for a file

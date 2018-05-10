@@ -46,7 +46,7 @@ public final class ListStatusOptions {
   private ListStatusOptions() {
     mLoadMetadataType =
         Configuration.getEnum(PropertyKey.USER_FILE_METADATA_LOAD_TYPE, LoadMetadataType.class);
-    mTtl = Configuration.getLong(PropertyKey.USER_FILE_READ_CACHE_TTL_MS);
+    mTtl = Configuration.getMs(PropertyKey.USER_FILE_READ_CACHE_TTL_MS);
     mTtlAction =
         Configuration.getEnum(PropertyKey.USER_FILE_READ_CACHE_TTL_EXPIRED_ACTION, TtlAction.class);
   }

@@ -43,7 +43,7 @@ public final class LoadMetadataOptions {
     mLoadDirectChildren = false;
     mUfsStatus = null;
     mTtl = Constants.NO_TTL;
-    mAction = TtlAction.DELETE;
+    mAction = TtlAction.FREE;
   }
 
   /**

@@ -48,7 +48,7 @@ public abstract class CreatePathOptions<T> {
     mRecursive = false;
     mMetadataLoad = false;
     mTtl = Constants.NO_TTL;
-    mTtlAction = TtlAction.DELETE;
+    mTtlAction = TtlAction.FREE;
   }
 
   protected abstract T getThis();

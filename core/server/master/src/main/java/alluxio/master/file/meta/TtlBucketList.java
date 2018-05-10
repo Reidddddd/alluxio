@@ -13,6 +13,9 @@ package alluxio.master.file.meta;
 
 import alluxio.Constants;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListSet;
 
@@ -26,6 +29,8 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @ThreadSafe
 public final class TtlBucketList {
+  private static final Logger LOG = LoggerFactory.getLogger(TtlBucketList.class);
+
   /**
    * List of buckets sorted by interval start time. SkipList is used for O(logn) insertion and
    * retrieval, see {@link ConcurrentSkipListSet}.
@@ -78,6 +83,11 @@ public final class TtlBucketList {
   public void insert(Inode<?> inode) {
     if (inode.getTtl() == Constants.NO_TTL) {
       return;
+    }
+    if (inode.isFile()) {
+      LOG.warn("InodeFile with ttl, {}", ((InodeFile) inode).toString());
+    } else if (inode.isDirectory()) {
+      LOG.warn("InodeDirectory with ttl, {}", ((InodeDirectory) inode).toString());
     }
 
     TtlBucket bucket;
