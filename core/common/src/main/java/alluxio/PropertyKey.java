@@ -696,6 +696,43 @@ public final class PropertyKey implements Comparable<PropertyKey> {
   public static final PropertyKey MASTER_PRINCIPAL = new Builder(Name.MASTER_PRINCIPAL)
       .setDescription("Kerberos principal for Alluxio master.")
       .build();
+  public static final PropertyKey MASTER_REPLICA_CHOOSE_WORKER_POLICY_CLASS =
+      new Builder(Name.MASTER_REPLICA_CHOOSE_WORKER_POLICY_CLASS)
+          .setDefaultValue("alluxio.master.block.PickCapacityMostUsedPolicy")
+          .setDescription("This policy is used to pick up a worker "
+              + "and to free an excess block on it.")
+          .build();
+  public static final PropertyKey MASTER_REPLICA_CLEANER_INTERVAL_MS =
+      new Builder(Name.MASTER_REPLICA_CLEANER_INTERVAL_MS)
+          .setDefaultValue("15min")
+          .setDescription("Replica cleaner will clean excess replica at fixed interval.")
+          .build();
+  public static final PropertyKey MASTER_REPLICA_MAJOR_CLEAN_UNIT =
+      new Builder(Name.MASTER_REPLICA_MAJOR_CLEAN_UNIT)
+          .setDefaultValue(3)
+          .setDescription("A clean unit is equal to alluxio.master.replica.cleaner.interval.ms, "
+              + "e.g., 3 units means every 3 * unit would trigger a major replica clean.")
+          .build();
+  public static final PropertyKey MASTER_REPLICA_MAJOR_THRESHOLD =
+      new Builder(Name.MASTER_REPLICA_MAJOR_THRESHOLD)
+          .setDefaultValue(2)
+          .setDescription("If a block's replica is over this specified value, then every "
+              + "alluxio.master.replica.major.clean.unit * "
+              + "alluxio.master.replica.cleaner.interval.ms will trigger a major replica clean.")
+          .build();
+  public static final PropertyKey MASTER_REPLICA_MINOR_CLEAN_UNIT =
+      new Builder(Name.MASTER_REPLICA_MINOR_CLEAN_UNIT)
+          .setDefaultValue(1)
+          .setDescription("A clean unit is equal to alluxio.master.replica.cleaner.interval.ms, "
+              + "e.g., 1 unit means every 1 * unit would trigger a minor replica clean.")
+          .build();
+  public static final PropertyKey MASTER_REPLICA_MINOR_THRESHOLD =
+      new Builder(Name.MASTER_REPLICA_MINOR_THRESHOLD)
+          .setDefaultValue(3)
+          .setDescription("If a block's replica is over this specified value, then every "
+              + "alluxio.master.replica.minor.clean.unit * "
+              + "alluxio.master.replica.cleaner.interval.ms will trigger a minor replica clean.")
+          .build();
   /**
    * @deprecated since version 1.4 and will be removed in version 2.0.
    */
@@ -2042,6 +2079,18 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String MASTER_LINEAGE_RECOMPUTE_LOG_PATH =
         "alluxio.master.lineage.recompute.log.path";
     public static final String MASTER_PRINCIPAL = "alluxio.master.principal";
+    public static final String MASTER_REPLICA_CHOOSE_WORKER_POLICY_CLASS =
+        "alluxio.master.replica.choose.worker.policy.class";
+    public static final String MASTER_REPLICA_CLEANER_INTERVAL_MS =
+        "alluxio.master.replica.cleaner.interval" ;
+    public static final String MASTER_REPLICA_MAJOR_CLEAN_UNIT =
+        "alluxio.master.replica.major.clean.unit";
+    public static final String MASTER_REPLICA_MAJOR_THRESHOLD =
+        "alluxio.master.replica.major.threshold";
+    public static final String MASTER_REPLICA_MINOR_CLEAN_UNIT =
+        "alluxio.master.replica.minor.clean.unit";
+    public static final String MASTER_REPLICA_MINOR_THRESHOLD =
+        "alluxio.master.replica.minor.threshold";
     public static final String MASTER_RETRY = "alluxio.master.retry";
     public static final String MASTER_RPC_PORT = "alluxio.master.port";
     public static final String MASTER_STARTUP_CONSISTENCY_CHECK_ENABLED =
