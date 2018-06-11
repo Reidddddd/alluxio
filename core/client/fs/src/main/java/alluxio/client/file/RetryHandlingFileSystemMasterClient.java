@@ -292,4 +292,15 @@ public final class RetryHandlingFileSystemMasterClient extends AbstractMasterCli
       }
     });
   }
+
+  @Override
+  public void reconfig() throws IOException {
+    retryRPC(new RpcCallable<Void>() {
+      @Override
+      public Void call() throws TException {
+        mClient.reconfig();
+        return null;
+      }
+    });
+  }
 }

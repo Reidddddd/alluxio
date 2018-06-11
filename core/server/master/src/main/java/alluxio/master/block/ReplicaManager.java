@@ -36,6 +36,8 @@ public class ReplicaManager {
 
   /** [level -> block's id that belongs to this level]. */
   private final NavigableMap<Integer, Set<Long>> mReplicaMap;
+  /** Invalid blocks which are no longer existed in BlockMap. */
+  private final Set<Long> mInvalidReplicas;
 
   enum ReplicaAction {
     /**
@@ -55,6 +57,7 @@ public class ReplicaManager {
    */
   public ReplicaManager() {
     mReplicaMap = new TreeMap<>();
+    mInvalidReplicas = new HashSet<>();
   }
 
   /**
@@ -104,7 +107,7 @@ public class ReplicaManager {
     }
 
     if (exactLevel == previousLevel) {
-      LOG.info("{} block {} from level {} to level {}. [At host {}]",
+      LOG.debug("{} block {} from level {} to level {}. [At host {}]",
           action, blockId, exactLevel, currentLevel, worker);
     } else {
       LOG.warn("MOVE block {} from level {} to level {}. [At host {}]",
@@ -120,16 +123,32 @@ public class ReplicaManager {
    * @return blocks that >= level
    */
   public Set<Long> fetchBlocksAboveLevel(int level) {
+    // Remove invalid blocks before fetching.
+    for (long invalidBlock : mInvalidReplicas) {
+      for (int l : getReplicaLevels()) {
+        if (contains(l, invalidBlock)) {
+          evictBlockFrom(l, invalidBlock);
+        }
+      }
+    }
+
+    // Fetch all blocks >= level
     Set<Long> blocks = new HashSet<>();
     for (int i : getReplicaLevelGreaterThan(level)) {
       blocks.addAll(getBlocksOfLevel(i));
     }
     if (blocks.size() == 0) {
       LOG.info("No replica is more than {}.", level);
-    } else {
-      LOG.info("There are {} replicas to be cleaned.", blocks.size());
     }
     return blocks;
+  }
+
+  /**
+   * Remove invalid block that no longer in block map.
+   * @param blockId id of block
+   */
+  public void removeInvalidBlock(long blockId) {
+    mInvalidReplicas.add(blockId);
   }
 
   /**

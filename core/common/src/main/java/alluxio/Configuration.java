@@ -114,6 +114,10 @@ public final class Configuration {
     validate();
   }
 
+  public static void reload() {
+    init();
+  }
+
   /**
    * @return default properties
    */

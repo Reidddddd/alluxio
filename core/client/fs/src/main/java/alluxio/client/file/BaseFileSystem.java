@@ -427,4 +427,14 @@ public class BaseFileSystem implements FileSystem {
       mFileSystemContext.releaseMasterClient(masterClient);
     }
   }
+
+  @Override
+  public void reconfig() throws IOException {
+    FileSystemMasterClient masterClient = mFileSystemContext.acquireMasterClient();
+    try {
+      masterClient.reconfig();
+    } finally {
+      mFileSystemContext.releaseMasterClient(masterClient);
+    }
+  }
 }

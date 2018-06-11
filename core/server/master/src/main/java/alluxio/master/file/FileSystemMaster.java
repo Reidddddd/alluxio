@@ -484,4 +484,9 @@ public interface FileSystemMaster extends Master {
    * @return a list of {@link WorkerInfo} objects representing the workers in Alluxio
    */
   List<WorkerInfo> getWorkerInfoList();
+
+  /**
+   * Online reconfiguration request.
+   */
+  void reconfig();
 }

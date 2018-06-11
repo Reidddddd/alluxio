@@ -1824,6 +1824,11 @@ public final class PropertyKey implements Comparable<PropertyKey> {
               + "CUSTOM, user application uses this property to indicate the user requesting "
               + "Alluxio service. If it is not set explicitly, the OS login user will be used.")
           .build();
+  public static final PropertyKey SECURITY_USER_GROUP_MAPPING =
+      new Builder(Name.SECURITY_USER_GROUP_MAPPING)
+          .setDescription("User group mapping, specified by configuration, has the following form"
+              + "foo=group1,group2,group3;who=group2")
+          .build();
 
   //
   // Mesos and Yarn related properties
@@ -2369,6 +2374,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String SECURITY_GROUP_MAPPING_CLASS =
         "alluxio.security.group.mapping.class";
     public static final String SECURITY_LOGIN_USERNAME = "alluxio.security.login.username";
+    public static final String SECURITY_USER_GROUP_MAPPING =
+        "alluxio.security.user.group.mapping";
 
     private Name() {} // prevent instantiation
   }

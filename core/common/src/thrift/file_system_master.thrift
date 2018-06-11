@@ -182,6 +182,8 @@ struct UfsInfo {
   2: optional MountTOptions properties
 }
 
+struct ReconfigTResponse {}
+
 /**
  * This interface contains file system master service endpoints for Alluxio clients.
  */
@@ -340,6 +342,13 @@ service FileSystemMasterClientService extends common.AlluxioService {
   UnmountTResponse unmount(
     /** the path of the alluxio mount point */ 1: string alluxioPath,
     /** the method options */ 2: UnmountTOptions options,
+    )
+    throws (1: exception.AlluxioTException e)
+
+  /**
+   * Online reconfiguration request.
+   */
+  ReconfigTResponse reconfig(
     )
     throws (1: exception.AlluxioTException e)
 }

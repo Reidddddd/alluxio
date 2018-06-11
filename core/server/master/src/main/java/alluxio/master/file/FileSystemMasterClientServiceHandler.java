@@ -57,6 +57,7 @@ import alluxio.thrift.LoadMetadataTOptions;
 import alluxio.thrift.LoadMetadataTResponse;
 import alluxio.thrift.MountTOptions;
 import alluxio.thrift.MountTResponse;
+import alluxio.thrift.ReconfigTResponse;
 import alluxio.thrift.RenameTOptions;
 import alluxio.thrift.RenameTResponse;
 import alluxio.thrift.ScheduleAsyncPersistenceTOptions;
@@ -418,6 +419,22 @@ public final class FileSystemMasterClientServiceHandler implements
       @Override
       public String toString() {
         return String.format("Unmount: alluxioPath=%s, options=%s", alluxioPath, options);
+      }
+    });
+  }
+
+  @Override
+  public ReconfigTResponse reconfig() throws AlluxioTException {
+    return RpcUtils.callAndLog(LOG, new RpcCallable<ReconfigTResponse>() {
+      @Override
+      public ReconfigTResponse call() {
+        mFileSystemMaster.reconfig();
+        return new ReconfigTResponse();
+      }
+
+      @Override
+      public String toString() {
+        return String.format("Reconfiguration request");
       }
     });
   }

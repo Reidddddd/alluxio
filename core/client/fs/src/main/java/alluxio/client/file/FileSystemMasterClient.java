@@ -190,4 +190,9 @@ public interface FileSystemMasterClient extends Client {
    * @param alluxioPath the Alluxio path
    */
   void unmount(AlluxioURI alluxioPath) throws IOException;
+
+  /**
+   * Online reconfiguration request.
+   */
+  void reconfig() throws IOException;
 }
