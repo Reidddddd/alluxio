@@ -11,10 +11,10 @@
 
 package alluxio;
 
-import net.jcip.annotations.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -33,7 +33,6 @@ import java.util.Set;
  * 3. Deregister the instance of the class with {@link OnlineReconfigManager}, using method
  *    {@link OnlineReconfigManager#deregisterObserver(OnlineReconfigObserver)}.
  */
-
 @ThreadSafe
 public class OnlineReconfigManager {
   private static final Logger LOG = LoggerFactory.getLogger(OnlineReconfigManager.class);

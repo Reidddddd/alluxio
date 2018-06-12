@@ -19,6 +19,7 @@ import alluxio.security.group.GroupMappingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,6 +29,7 @@ import java.util.Map;
 /**
  * User group mapping based on configuration setting.
  */
+@ThreadSafe
 public class ConfigBasedUserGroupMapping implements GroupMappingService, OnlineReconfigObserver {
   private final static Logger LOG = LoggerFactory.getLogger(ConfigBasedUserGroupMapping.class);
 

@@ -159,6 +159,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
 
   /** Keeps track of block replicas. */
   private final ReplicaManager mReplicaManager = new ReplicaManager();
+  /** Keeps track of serving hosts. */
+  private final HostManager mHostManager = new HostManager();
 
   /**
    * The service that detects lost worker nodes, and tries to restart the failed workers.
@@ -601,6 +603,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         return lostWorkerId;
       }
     }
+
+    mHostManager.workerIsUp(workerNetAddress.getHost());
 
     // Generate a new worker id.
     long workerId = IdUtils.getRandomNonNegativeLong();
