@@ -16,18 +16,20 @@ import alluxio.master.block.meta.MasterBlockInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.NavigableMap;
+import java.util.Iterator;
 import java.util.Set;
-import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * Replica manager keeps track of those blocks whose number is more than 2.
  * Level means the number of replicas.
  */
-@NotThreadSafe
+@ThreadSafe
 public class ReplicaManager {
   private static final Logger LOG = LoggerFactory.getLogger(ReplicaManager.class);
 
@@ -35,7 +37,7 @@ public class ReplicaManager {
   private static final int ONLY_ONE_REPLICA = 1;
 
   /** [level -> block's id that belongs to this level]. */
-  private final NavigableMap<Integer, Set<Long>> mReplicaMap;
+  private final ConcurrentNavigableMap<Integer, Set<Long>> mReplicaMap;
   /** Invalid blocks which are no longer existed in BlockMap. */
   private final Set<Long> mInvalidReplicas;
 
@@ -56,8 +58,8 @@ public class ReplicaManager {
    * Constructor for ReplicaManager.
    */
   public ReplicaManager() {
-    mReplicaMap = new TreeMap<>();
-    mInvalidReplicas = new HashSet<>();
+    mReplicaMap = new ConcurrentSkipListMap<>();
+    mInvalidReplicas = Collections.newSetFromMap(new ConcurrentHashMap<Long, Boolean>());
   }
 
   /**
@@ -135,7 +137,14 @@ public class ReplicaManager {
     // Fetch all blocks >= level
     Set<Long> blocks = new HashSet<>();
     for (int i : getReplicaLevelGreaterThan(level)) {
-      blocks.addAll(getBlocksOfLevel(i));
+      // To avoid ConcurrentModificationException while iteration
+      Set<Long> subSet = getBlocksOfLevel(i);
+      synchronized (subSet) {
+        Iterator<Long> it = subSet.iterator();
+        while (it.hasNext()) {
+          blocks.add(it.next());
+        }
+      }
     }
     if (blocks.size() == 0) {
       LOG.info("No replica is more than {}.", level);
@@ -198,7 +207,7 @@ public class ReplicaManager {
       return;
     }
     if (!mReplicaMap.containsKey(level)) {
-      mReplicaMap.put(level, new HashSet<Long>());
+      mReplicaMap.put(level, Collections.synchronizedSet(new HashSet<Long>()));
       LOG.info("Create level {}.", level);
     }
   }

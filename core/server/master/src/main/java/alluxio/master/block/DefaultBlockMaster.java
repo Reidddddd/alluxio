@@ -666,6 +666,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       if (toRemoveBlocks.isEmpty()) {
         return new Command(CommandType.Nothing, new ArrayList<Long>());
       }
+      LOG.info("Ask {} to delete blocks {}.",
+          worker.getWorkerAddress().getHost(), toRemoveBlocks.toString());
       return new Command(CommandType.Free, toRemoveBlocks);
     }
   }
