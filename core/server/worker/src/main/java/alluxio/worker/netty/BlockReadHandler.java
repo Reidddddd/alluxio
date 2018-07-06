@@ -145,11 +145,11 @@ public final class BlockReadHandler extends AbstractReadHandler<BlockReadRequest
       }
 
       do {
-        long lockId;
-        if (request.isPersisted()) {
-          lockId = mWorker.lockBlockNoException(request.getSessionId(), request.getId());
-        } else {
+        long lockId = BlockLockManager.INVALID_LOCK_ID;
+        try {
           lockId = mWorker.lockBlock(request.getSessionId(), request.getId());
+        } catch (BlockDoesNotExistException bdnee) {
+          // lockId is still INVALID_LOCK_ID, ok to ignore.
         }
         if (lockId != BlockLockManager.INVALID_LOCK_ID) {
           try {
@@ -162,7 +162,6 @@ public final class BlockReadHandler extends AbstractReadHandler<BlockReadRequest
             ((FileChannel) reader.getChannel()).position(request.getStart());
             return;
           } catch (Exception e) {
-            mWorker.unlockBlock(lockId);
             throw e;
           }
         }

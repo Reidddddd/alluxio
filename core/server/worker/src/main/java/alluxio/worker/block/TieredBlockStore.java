@@ -136,16 +136,15 @@ public class TieredBlockStore implements BlockStore {
 
   @Override
   public long lockBlock(long sessionId, long blockId) throws BlockDoesNotExistException {
-    long lockId = mLockManager.lockBlock(sessionId, blockId, BlockLockType.READ);
     boolean hasBlock;
     try (LockResource r = new LockResource(mMetadataReadLock)) {
       hasBlock = mMetaManager.hasBlockMeta(blockId);
     }
     if (hasBlock) {
-      return lockId;
+      return mLockManager.lockBlock(sessionId, blockId, BlockLockType.READ);
     }
 
-    mLockManager.unlockBlock(lockId);
+    // mLockManager.unlockBlock(lockId);
     throw new BlockDoesNotExistException(ExceptionMessage.NO_BLOCK_ID_FOUND, blockId);
   }
 

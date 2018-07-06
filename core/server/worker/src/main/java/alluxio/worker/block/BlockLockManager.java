@@ -123,6 +123,9 @@ public final class BlockLockManager {
           sessionLockIds.add(lockId);
         }
       }
+      Thread t = Thread.currentThread();
+      LOG.info("{} with thread id {} in session id {}, {} lock {}, with id {}",
+          t.getName(), t.getId(), sessionId, blockLockType, blockId, lockId);
       return lockId;
     } catch (RuntimeException e) {
       // If an unexpected exception occurs, we should release the lock to be conservative.
@@ -244,6 +247,8 @@ public final class BlockLockManager {
   // TODO(bin): Temporary, remove me later.
   public boolean unlockBlock(long sessionId, long blockId) {
     synchronized (mSharedMapsLock) {
+      LOG.info("{} with thread id {} in session id {}, unlock with id {}",
+          Thread.currentThread().getName(), Thread.currentThread().getId(), sessionId, blockId);
       Set<Long> sessionLockIds = mSessionIdToLockIdsMap.get(sessionId);
       if (sessionLockIds == null) {
         return false;
@@ -346,6 +351,8 @@ public final class BlockLockManager {
    * @param blockId the block id for which to potentially release the block lock
    */
   private void unlock(Lock lock, long blockId) {
+    LOG.info("{} with thread id {}, unlock with id {}",
+        Thread.currentThread().getName(), Thread.currentThread().getId(), blockId);
     lock.unlock();
     releaseBlockLockIfUnused(blockId);
   }

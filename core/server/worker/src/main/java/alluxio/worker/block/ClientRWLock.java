@@ -13,6 +13,8 @@ package alluxio.worker.block;
 
 import alluxio.Configuration;
 import alluxio.PropertyKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -30,6 +34,8 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @ThreadSafe
 public final class ClientRWLock implements ReadWriteLock {
+  private static final Logger LOG = LoggerFactory.getLogger(ClientRWLock.class);
+
   /** Total number of permits. This value decides the max number of concurrent readers. */
   private static final int MAX_AVAILABLE =
           Configuration.getInt(PropertyKey.WORKER_TIERED_STORE_BLOCK_LOCK_READERS);
@@ -42,19 +48,26 @@ public final class ClientRWLock implements ReadWriteLock {
   /** Reference count. */
   private AtomicInteger mReferences = new AtomicInteger();
 
+  private final ReentrantReadWriteLock mRWLock = new ReentrantReadWriteLock();
+
   /**
    * Constructs a new {@link ClientRWLock}.
    */
   public ClientRWLock() {}
 
+  private enum LockType {
+    READ,
+    WRITE
+  }
+
   @Override
   public Lock readLock() {
-    return new SessionLock(1);
+    return new SessionLock(LockType.READ);
   }
 
   @Override
   public Lock writeLock() {
-    return new SessionLock(MAX_AVAILABLE);
+    return new SessionLock(LockType.WRITE);
   }
 
   /**
@@ -81,31 +94,34 @@ public final class ClientRWLock implements ReadWriteLock {
   }
 
   private final class SessionLock implements Lock {
-    private final int mPermits;
+    private final LockType mType;
+    private final Lock mLock;
 
-    private SessionLock(int permits) {
-      mPermits = permits;
+    private SessionLock(LockType type) {
+      mType = type;
+      mLock = type == LockType.READ ? mRWLock.readLock() : mRWLock.writeLock();
     }
 
     @Override
     public void lock() {
-      mAvailable.acquireUninterruptibly(mPermits);
+      LOG.info("{} is acquiring {} lock", Thread.currentThread().getName(), mType);
+      mLock.lock();
     }
 
     @Override
     public void lockInterruptibly() throws InterruptedException {
-      mAvailable.acquire(mPermits);
+      mLock.lockInterruptibly();
     }
 
     @Override
     public boolean tryLock() {
-      return mAvailable.tryAcquire(mPermits);
+      return mLock.tryLock();
     }
 
     @Override
     public boolean tryLock(long time, TimeUnit unit) {
       try {
-        return mAvailable.tryAcquire(mPermits, time, unit);
+        return mLock.tryLock(time, unit);
       } catch (InterruptedException e) {
         return false;
       }
@@ -113,7 +129,8 @@ public final class ClientRWLock implements ReadWriteLock {
 
     @Override
     public void unlock() {
-      mAvailable.release(mPermits);
+      mLock.unlock();
+      LOG.info("{} is releasing {} lock", Thread.currentThread().getName(), mType);
     }
 
     @Override

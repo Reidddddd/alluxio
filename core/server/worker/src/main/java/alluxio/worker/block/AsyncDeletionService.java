@@ -101,6 +101,7 @@ public class AsyncDeletionService {
               mThreadName, blockToBeRemoved, e.getMessage());
         } finally {
           if (blockToBeRemoved != -1L) {
+            mBlockWorker.unlockBlock(Sessions.MASTER_COMMAND_SESSION_ID, blockToBeRemoved);
             mToAvoidDuplicateBlock.remove(blockToBeRemoved);
           }
         }
