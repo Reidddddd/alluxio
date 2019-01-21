@@ -295,6 +295,8 @@ public class FileInStream extends InputStream implements BoundedStream, Position
     mBlockInStream = mBlockStore.getInStream(blockId, mOptions, mFailedWorkers);
     // Set the stream to the correct position.
     long offset = mPosition % mBlockSize;
+    LOG.info("Reading block {} at offset {} from {} worker {}.",
+      blockId, offset, mBlockInStream.getSource(), mBlockInStream.getAddress().getHost());
     mBlockInStream.seek(offset);
   }
 

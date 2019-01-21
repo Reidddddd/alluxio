@@ -80,6 +80,7 @@ public class AsyncCacheRequestManager {
     try {
       mAsyncCacheExecutor.submit(() -> {
         boolean result = false;
+        long startTime = System.currentTimeMillis();
         try {
           // Check if the block has already been cached on this worker
           long lockId = mBlockWorker.lockBlockNoException(Sessions.ASYNC_CACHE_SESSION_ID, blockId);
@@ -105,10 +106,12 @@ public class AsyncCacheRequestManager {
             result = cacheBlockFromRemoteWorker(
                     blockId, blockLength, sourceAddress, openUfsBlockOptions);
           }
-          LOG.debug("Result of async caching block {}: {}", blockId, result);
+          LOG.info("Result of async caching block {}: {}", blockId, result);
         } catch (Exception e) {
           LOG.warn("Async cache request failed.\n{}\nError: {}", request, e);
         } finally {
+          long endTime = System.currentTimeMillis();
+          LOG.info("It takes {}ms to process block {}.", (endTime - startTime), blockId);
           if (result) {
             ASYNC_CACHE_SUCCEEDED_BLOCKS.inc();
           } else {
