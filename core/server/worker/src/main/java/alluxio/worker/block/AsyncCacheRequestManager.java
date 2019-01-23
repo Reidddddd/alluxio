@@ -103,7 +103,7 @@ public class AsyncCacheRequestManager {
       long startTime = System.currentTimeMillis();
       cacheBlockFromUfs(block.getId(), block.getLength(), block.getOptions());
       long endTime = System.currentTimeMillis();
-      LOG.info("Time to cache {} is {]ms", block.getId(), endTime - startTime);
+      LOG.info("Time to cache {} is {}ms", block.getId(), endTime - startTime);
       ASYNC_CACHE_UFS_BLOCKS.inc();
     }
   }
