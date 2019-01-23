@@ -42,8 +42,8 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 public final class NettyClient {
   /**  Share both the encoder and decoder with all the client pipelines. */
-  private static final RPCMessageEncoder ENCODER = new RPCMessageEncoder();
-  private static final RPCMessageDecoder DECODER = new RPCMessageDecoder();
+  public static final RPCMessageEncoder ENCODER = new RPCMessageEncoder();
+  public static final RPCMessageDecoder DECODER = new RPCMessageDecoder();
 
   /**
    * Reuse {@link EventLoopGroup} for all clients. Use daemon threads so the JVM is allowed to
@@ -63,8 +63,8 @@ public final class NettyClient {
    * @param address the socket address
    * @return the new client {@link Bootstrap}
    */
-  public static Bootstrap createClientBootstrap(SocketAddress address) {
-    final Bootstrap boot = new Bootstrap();
+  public static Bootstrap createBootstrap(SocketAddress address) {
+    Bootstrap boot = new Bootstrap();
 
     boot.group(WORKER_GROUP)
         .channel(NettyUtils.getClientChannelClass(!(address instanceof InetSocketAddress)));
@@ -74,22 +74,6 @@ public final class NettyClient {
     if (NettyUtils.USER_CHANNEL_TYPE == ChannelType.EPOLL) {
       boot.option(EpollChannelOption.EPOLL_MODE, EpollMode.LEVEL_TRIGGERED);
     }
-
-    // After 10 missed heartbeat attempts and no write activity, the server will close the channel.
-    final long timeoutMs = Configuration.getMs(PropertyKey.NETWORK_NETTY_HEARTBEAT_TIMEOUT_MS);
-    final long heartbeatPeriodMs = Math.max(timeoutMs / 10, 1);
-    boot.handler(new ChannelInitializer<Channel>() {
-      @Override
-      public void initChannel(Channel ch) throws Exception {
-        ChannelPipeline pipeline = ch.pipeline();
-
-        pipeline.addLast(RPCMessage.createFrameDecoder());
-        pipeline.addLast(ENCODER);
-        pipeline.addLast(DECODER);
-        pipeline.addLast(new IdleStateHandler(0, heartbeatPeriodMs, 0, TimeUnit.MILLISECONDS));
-        pipeline.addLast(new IdleWriteHandler());
-      }
-    });
 
     return boot;
   }

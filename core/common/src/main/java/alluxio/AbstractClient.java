@@ -330,7 +330,7 @@ public abstract class AbstractClient implements Client {
   public synchronized void disconnect() {
     if (mConnected) {
       Preconditions.checkNotNull(mProtocol, PreconditionMessage.PROTOCOL_NULL_WHEN_CONNECTED);
-      LOG.debug("Disconnecting from the {} @ {}", getServiceName(), mAddress);
+      LOG.info("Disconnecting from the {} @ {}", getServiceName(), mAddress);
       beforeDisconnect();
       mProtocol.getTransport().close();
       mConnected = false;
