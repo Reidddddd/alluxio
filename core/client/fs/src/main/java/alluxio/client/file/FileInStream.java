@@ -293,6 +293,38 @@ public class FileInStream extends InputStream implements BoundedStream, Position
     long blockId = mStatus.getBlockIds().get(Math.toIntExact(mPosition / mBlockSize));
     // Create stream
     mBlockInStream = mBlockStore.getInStream(blockId, mOptions, mFailedWorkers);
+    // Send an async cache request to a worker based on read type and passive cache options.
+    boolean cache = mOptions.getOptions().getReadType().isCache();
+    boolean passiveCache = Configuration.getBoolean(PropertyKey.USER_FILE_PASSIVE_CACHE_ENABLED);
+    long channelTimeout = Configuration.getMs(PropertyKey.USER_NETWORK_NETTY_TIMEOUT_MS);
+    if (cache) {
+      WorkerNetAddress dataSource = mBlockInStream.getAddress();
+      WorkerNetAddress worker;
+      if (passiveCache && mContext.hasLocalWorker()) { // send request to local worker
+        worker = mContext.getLocalWorker();
+      } else { // send request to data source
+        worker = mBlockInStream.getAddress();
+      }
+      try {
+        // Construct the async cache request
+        long blockLength = mOptions.getBlockInfo(blockId).getLength();
+        Protocol.AsyncCacheRequest request =
+          Protocol.AsyncCacheRequest.newBuilder().setBlockId(blockId).setLength(blockLength)
+            .setOpenUfsBlockOptions(mOptions.getOpenUfsBlockOptions(blockId))
+            .setSourceHost(dataSource.getHost()).setSourcePort(dataSource.getDataPort()).build();
+        Channel channel = mContext.acquireNettyChannel(worker);
+        try {
+          NettyRPCContext rpcContext =
+            NettyRPCContext.defaults().setChannel(channel).setTimeout(channelTimeout);
+          NettyRPC.fireAndForget(rpcContext, new ProtoMessage(request));
+        } finally {
+          mContext.releaseNettyChannel(worker, channel);
+        }
+      } catch (Exception e) {
+        LOG.warn("Failed to complete async cache request for block {} at worker {}: {}", blockId,
+          worker, e.getMessage());
+      }
+    }
     // Set the stream to the correct position.
     long offset = mPosition % mBlockSize;
     LOG.info("Reading block {} at offset {} from {} worker {}.",
@@ -303,49 +335,10 @@ public class FileInStream extends InputStream implements BoundedStream, Position
   private void closeBlockInStream(BlockInStream stream) throws IOException {
     if (stream != null) {
       // Get relevant information from the stream.
-      WorkerNetAddress dataSource = stream.getAddress();
-      long blockId = stream.getId();
-      BlockInStream.BlockInStreamSource blockSource = stream.getSource();
       stream.close();
       // TODO(calvin): we should be able to do a close check instead of using null
       if (stream == mBlockInStream) { // if stream is instance variable, set to null
         mBlockInStream = null;
-      }
-      if (blockSource == BlockInStream.BlockInStreamSource.LOCAL) {
-        return;
-      }
-
-      // Send an async cache request to a worker based on read type and passive cache options.
-      boolean cache = mOptions.getOptions().getReadType().isCache();
-      boolean passiveCache = Configuration.getBoolean(PropertyKey.USER_FILE_PASSIVE_CACHE_ENABLED);
-      long channelTimeout = Configuration.getMs(PropertyKey.USER_NETWORK_NETTY_TIMEOUT_MS);
-      if (cache) {
-        WorkerNetAddress worker;
-        if (passiveCache && mContext.hasLocalWorker()) { // send request to local worker
-          worker = mContext.getLocalWorker();
-        } else { // send request to data source
-          worker = dataSource;
-        }
-        try {
-          // Construct the async cache request
-          long blockLength = mOptions.getBlockInfo(blockId).getLength();
-          Protocol.AsyncCacheRequest request =
-              Protocol.AsyncCacheRequest.newBuilder().setBlockId(blockId).setLength(blockLength)
-                  .setOpenUfsBlockOptions(mOptions.getOpenUfsBlockOptions(blockId))
-                  .setSourceHost(dataSource.getHost()).setSourcePort(dataSource.getDataPort())
-                  .build();
-          Channel channel = mContext.acquireNettyChannel(worker);
-          try {
-            NettyRPCContext rpcContext =
-                NettyRPCContext.defaults().setChannel(channel).setTimeout(channelTimeout);
-            NettyRPC.fireAndForget(rpcContext, new ProtoMessage(request));
-          } finally {
-            mContext.releaseNettyChannel(worker, channel);
-          }
-        } catch (Exception e) {
-          LOG.warn("Failed to complete async cache request for block {} at worker {}: {}", blockId,
-              worker, e.getMessage());
-        }
       }
     }
   }
