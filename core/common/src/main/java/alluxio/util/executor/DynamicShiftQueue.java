@@ -138,11 +138,11 @@ public class DynamicShiftQueue<T> {
                 notEmpty.awaitNanos(nano);
               }
             } else {
-              LOG.info("Taked an item from backup queue {}", backupQueue.toString());
+              LOG.info("Polled an item from backup queue {}", backupQueue.toString());
               return item;
             }
           } else {
-            LOG.info("Taked an item from self queue {}.", this.toString());
+            LOG.info("Polled an item from self queue {}.", this.toString());
             return item;
           }
         }

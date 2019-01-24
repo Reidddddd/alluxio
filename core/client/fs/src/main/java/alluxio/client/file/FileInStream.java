@@ -39,7 +39,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -70,6 +72,10 @@ public class FileInStream extends InputStream implements BoundedStream, Position
   private static final Logger LOG = LoggerFactory.getLogger(FileInStream.class);
   private static final int MAX_WORKERS_TO_RETRY =
       Configuration.getInt(PropertyKey.USER_BLOCK_WORKER_CLIENT_READ_RETRY);
+  private static final boolean PASSIVE_CACHE =
+    Configuration.getBoolean(PropertyKey.USER_FILE_PASSIVE_CACHE_ENABLED);
+  private static final long CHANNEL_TIMEOUT =
+    Configuration.getMs(PropertyKey.USER_NETWORK_NETTY_TIMEOUT_MS);
 
   private final URIStatus mStatus;
   private final InStreamOptions mOptions;
@@ -90,6 +96,8 @@ public class FileInStream extends InputStream implements BoundedStream, Position
 
   /** A map of worker addresses to the most recent epoch time when client fails to read from it. */
   private Map<WorkerNetAddress, Long> mFailedWorkers = new HashMap<>();
+
+  private Set<Long> alreadCachedBlocks = new HashSet<>();
 
   protected FileInStream(URIStatus status, InStreamOptions options, FileSystemContext context) {
     mStatus = status;
@@ -292,44 +300,52 @@ public class FileInStream extends InputStream implements BoundedStream, Position
     // Calculate block id.
     long blockId = mStatus.getBlockIds().get(Math.toIntExact(mPosition / mBlockSize));
     // Create stream
+    long startTime = System.currentTimeMillis();
     mBlockInStream = mBlockStore.getInStream(blockId, mOptions, mFailedWorkers);
+    long endTime = System.currentTimeMillis();
+    LOG.info("Time get BlockInStream {}ms", endTime - startTime);
+
     // Send an async cache request to a worker based on read type and passive cache options.
     boolean cache = mOptions.getOptions().getReadType().isCache();
-    boolean passiveCache = Configuration.getBoolean(PropertyKey.USER_FILE_PASSIVE_CACHE_ENABLED);
-    long channelTimeout = Configuration.getMs(PropertyKey.USER_NETWORK_NETTY_TIMEOUT_MS);
-    if (cache) {
-      WorkerNetAddress dataSource = mBlockInStream.getAddress();
-      WorkerNetAddress worker;
-      if (passiveCache && mContext.hasLocalWorker()) { // send request to local worker
-        worker = mContext.getLocalWorker();
-      } else { // send request to data source
-        worker = mBlockInStream.getAddress();
-      }
-      try {
-        // Construct the async cache request
-        long blockLength = mOptions.getBlockInfo(blockId).getLength();
-        Protocol.AsyncCacheRequest request =
-          Protocol.AsyncCacheRequest.newBuilder().setBlockId(blockId).setLength(blockLength)
-            .setOpenUfsBlockOptions(mOptions.getOpenUfsBlockOptions(blockId))
-            .setSourceHost(dataSource.getHost()).setSourcePort(dataSource.getDataPort()).build();
-        Channel channel = mContext.acquireNettyChannel(worker);
-        try {
-          NettyRPCContext rpcContext =
-            NettyRPCContext.defaults().setChannel(channel).setTimeout(channelTimeout);
-          NettyRPC.fireAndForget(rpcContext, new ProtoMessage(request));
-        } finally {
-          mContext.releaseNettyChannel(worker, channel);
-        }
-      } catch (Exception e) {
-        LOG.warn("Failed to complete async cache request for block {} at worker {}: {}", blockId,
-          worker, e.getMessage());
-      }
+    if (cache && !alreadCachedBlocks.contains(blockId)) {
+      alreadCachedBlocks.add(blockId);
+      passiveCacheRemote(blockId);
     }
+
     // Set the stream to the correct position.
     long offset = mPosition % mBlockSize;
     LOG.info("Reading block {} at offset {} from {} worker {}.",
       blockId, offset, mBlockInStream.getSource(), mBlockInStream.getAddress().getHost());
     mBlockInStream.seek(offset);
+  }
+
+  private void passiveCacheRemote(long blockId) throws IOException {
+    WorkerNetAddress dataSource = mBlockInStream.getAddress();
+    WorkerNetAddress worker;
+    if (PASSIVE_CACHE && mContext.hasLocalWorker()) { // send request to local worker
+      worker = mContext.getLocalWorker();
+    } else { // send request to data source
+      worker = mBlockInStream.getAddress();
+    }
+    try {
+      // Construct the async cache request
+      long blockLength = mOptions.getBlockInfo(blockId).getLength();
+      Protocol.AsyncCacheRequest request =
+        Protocol.AsyncCacheRequest.newBuilder().setBlockId(blockId).setLength(blockLength)
+          .setOpenUfsBlockOptions(mOptions.getOpenUfsBlockOptions(blockId))
+          .setSourceHost(dataSource.getHost()).setSourcePort(dataSource.getDataPort()).build();
+      Channel channel = mContext.acquireNettyChannel(worker);
+      try {
+        NettyRPCContext rpcContext =
+          NettyRPCContext.defaults().setChannel(channel).setTimeout(CHANNEL_TIMEOUT);
+        NettyRPC.fireAndForget(rpcContext, new ProtoMessage(request));
+      } finally {
+        mContext.releaseNettyChannel(worker, channel);
+      }
+    } catch (Exception e) {
+      LOG.warn("Failed to complete async cache request for block {} at worker {}: {}", blockId,
+        worker, e.getMessage());
+    }
   }
 
   private void closeBlockInStream(BlockInStream stream) throws IOException {
