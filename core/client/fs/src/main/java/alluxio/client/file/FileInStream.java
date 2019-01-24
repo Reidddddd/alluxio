@@ -300,15 +300,16 @@ public class FileInStream extends InputStream implements BoundedStream, Position
     // Calculate block id.
     long blockId = mStatus.getBlockIds().get(Math.toIntExact(mPosition / mBlockSize));
     // Create stream
-    long startTime = System.currentTimeMillis();
+    long startTime = System.nanoTime();
     mBlockInStream = mBlockStore.getInStream(blockId, mOptions, mFailedWorkers);
-    long endTime = System.currentTimeMillis();
-    LOG.info("Time get BlockInStream {}ms", endTime - startTime);
+    long endTime = System.nanoTime();
+    LOG.info("Time get BlockInStream {}nns", endTime - startTime);
 
     // Send an async cache request to a worker based on read type and passive cache options.
     boolean cache = mOptions.getOptions().getReadType().isCache();
     if (cache && !alreadCachedBlocks.contains(blockId)) {
       alreadCachedBlocks.add(blockId);
+      LOG.info("Passively caching block {}", blockId);
       passiveCacheRemote(blockId);
     }
 
