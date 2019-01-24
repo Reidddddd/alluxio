@@ -20,7 +20,6 @@ import alluxio.client.PositionedReadable;
 import alluxio.client.block.AlluxioBlockStore;
 import alluxio.client.block.stream.BlockInStream;
 import alluxio.client.file.options.InStreamOptions;
-import alluxio.collections.ConcurrentHashSet;
 import alluxio.exception.PreconditionMessage;
 import alluxio.exception.status.DeadlineExceededException;
 import alluxio.exception.status.UnavailableException;
@@ -44,6 +43,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -101,6 +102,8 @@ public class FileInStream extends InputStream implements BoundedStream, Position
 
   private static final Set<Long> alreadCachedBlocks =
     Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+  private static final ExecutorService service = Executors.newFixedThreadPool(8);
 
   protected FileInStream(URIStatus status, InStreamOptions options, FileSystemContext context) {
     mStatus = status;
@@ -301,7 +304,7 @@ public class FileInStream extends InputStream implements BoundedStream, Position
 
     /* Create a new stream to read from mPosition. */
     // Calculate block id.
-    long blockId = mStatus.getBlockIds().get(Math.toIntExact(mPosition / mBlockSize));
+    final long blockId = mStatus.getBlockIds().get(Math.toIntExact(mPosition / mBlockSize));
     // Create stream
     long startTime = System.nanoTime();
     mBlockInStream = mBlockStore.getInStream(blockId, mOptions, mFailedWorkers);
@@ -313,7 +316,16 @@ public class FileInStream extends InputStream implements BoundedStream, Position
     if (cache && !alreadCachedBlocks.contains(blockId)) {
       alreadCachedBlocks.add(blockId);
       LOG.info("Passively caching block {}", blockId);
-      passiveCacheRemote(blockId);
+      service.submit(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            passiveCacheRemote(blockId);
+          } catch (IOException e) {
+            LOG.info("Unexpected!!!!");
+          }
+        }
+      });
     }
 
     // Set the stream to the correct position.
