@@ -20,6 +20,7 @@ import alluxio.client.PositionedReadable;
 import alluxio.client.block.AlluxioBlockStore;
 import alluxio.client.block.stream.BlockInStream;
 import alluxio.client.file.options.InStreamOptions;
+import alluxio.collections.ConcurrentHashSet;
 import alluxio.exception.PreconditionMessage;
 import alluxio.exception.status.DeadlineExceededException;
 import alluxio.exception.status.UnavailableException;
@@ -38,10 +39,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -97,7 +99,8 @@ public class FileInStream extends InputStream implements BoundedStream, Position
   /** A map of worker addresses to the most recent epoch time when client fails to read from it. */
   private Map<WorkerNetAddress, Long> mFailedWorkers = new HashMap<>();
 
-  private Set<Long> alreadCachedBlocks = new HashSet<>();
+  private static final Set<Long> alreadCachedBlocks =
+    Collections.newSetFromMap(new ConcurrentHashMap<>());
 
   protected FileInStream(URIStatus status, InStreamOptions options, FileSystemContext context) {
     mStatus = status;
