@@ -192,7 +192,7 @@ public final class AlluxioBlockStore {
         mAllBlockWorkersInfo = getEligibleWorkers();
         mCacheAllWorkersAddress = new ArrayList<>(mAllBlockWorkersInfo.size());
         for (int i = 0; i < mAllBlockWorkersInfo.size(); i++) {
-          mCacheAllWorkersAddress.set(i, mAllBlockWorkersInfo.get(i).getNetAddress());
+          mCacheAllWorkersAddress.add(i, mAllBlockWorkersInfo.get(i).getNetAddress());
         }
       }
       BlockLocationPolicy policy = options.getOptions().getUfsReadLocationPolicy();
