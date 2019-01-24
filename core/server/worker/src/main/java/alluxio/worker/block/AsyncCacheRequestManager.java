@@ -103,7 +103,7 @@ public class AsyncCacheRequestManager {
       long startTime = System.currentTimeMillis();
       cacheBlockFromUfs(block.getId(), block.getLength(), block.getOptions());
       long endTime = System.currentTimeMillis();
-      LOG.info("Time to cache {} is {}ms", block.getId(), endTime - startTime);
+      LOG.info("Time to ufs cache {} is {}ms", block.getId(), endTime - startTime);
       ASYNC_CACHE_UFS_BLOCKS.inc();
     }
   }
@@ -119,7 +119,7 @@ public class AsyncCacheRequestManager {
       cacheBlockFromRemoteWorker(block.getId(), block.getLength(),
         block.getSource(), block.getOptions());
       long endTime = System.currentTimeMillis();
-      LOG.info("Time to cache {} is {]ms", block.getId(), endTime - startTime);
+      LOG.info("Time to remote cache {} is {}ms", block.getId(), endTime - startTime);
       ASYNC_CACHE_REMOTE_BLOCKS.inc();
     }
   }
@@ -195,23 +195,12 @@ public class AsyncCacheRequestManager {
     ASYNC_CACHE_REQUESTS.inc();
     long blockId = request.getBlockId();
     long blockLength = request.getLength();
-    long lockID = mBlockWorker.lockBlockNoException(Sessions.ASYNC_CACHE_SESSION_ID, blockId);
-    if (lockID != BlockLockManager.INVALID_LOCK_ID) {
-      try {
-        mBlockWorker.unlockBlock(lockID);
-      } catch (BlockDoesNotExistException bdee) {
-        LOG.error("Failed to unlock block on async caching. We should never reach here", bdee);
-      }
-      ASYNC_CACHE_DUPLICATE_REQUESTS.inc();
-      return;
-    } else {
-      CacheBlock.Builder builder = new CacheBlock.Builder();
-      builder.setBlock(blockId).setLength(blockLength)
-             .setOpenUfsOptions(request.getOpenUfsBlockOptions())
-             .setSource(new InetSocketAddress(request.getSourceHost(), request.getSourcePort()));
-      CacheBlock cacheBlock = builder.build();
-      pendingCache.add(cacheBlock);
-    }
+    CacheBlock.Builder builder = new CacheBlock.Builder();
+    builder.setBlock(blockId).setLength(blockLength)
+           .setOpenUfsOptions(request.getOpenUfsBlockOptions())
+           .setSource(new InetSocketAddress(request.getSourceHost(), request.getSourcePort()));
+    CacheBlock cacheBlock = builder.build();
+    pendingCache.add(cacheBlock);
   }
 
   /**

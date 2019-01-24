@@ -88,11 +88,12 @@ public class DynamicShiftQueue<T> {
         if (success) {
           LOG.info("New item is offered in queue {}", this.toString());
           notEmpty.signal();
+          return true;
         }
       } finally {
         lock.unlock();
       }
-      return success;
+      return backupQueue.offer(t);
     }
 
     @Override
