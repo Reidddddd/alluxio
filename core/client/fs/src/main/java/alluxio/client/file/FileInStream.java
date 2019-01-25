@@ -395,8 +395,7 @@ public class FileInStream extends InputStream implements BoundedStream, Position
       return;
     }
 
-    if (mBlockInStream.getSource() == BlockInStream.BlockInStreamSource.REMOTE ||
-        mBlockInStream.getSource() == BlockInStream.BlockInStreamSource.UFS) {
+    if (mBlockInStream.getSource() == BlockInStream.BlockInStreamSource.LOCAL) {
       return;
     }
     if (getPos() % mBlockSize != 0) {
