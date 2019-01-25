@@ -174,7 +174,8 @@ public final class AlluxioBlockStore {
     WorkerNetAddress dataSource = null;
     List<BlockLocation> locations = info.getLocations();
     if (!locations.isEmpty()) {
-      excludeFailedWorkersInBlockLocation(locations, failedWorkers.keySet());
+      excludeFailedWorkersInBlockLocation(locations,
+        failedWorkers != null ? failedWorkers.keySet() : null);
       for (BlockLocation location : locations) {
         WorkerNetAddress workerAddress = location.getWorkerAddress();
         if (mLocalWorker != null &&
@@ -202,7 +203,7 @@ public final class AlluxioBlockStore {
       BlockLocationPolicy policy = options.getOptions().getUfsReadLocationPolicy();
       dataSource = policy.getWorker(
         GetWorkerOptions.defaults().setBlockWorkerInfos(
-          excludeFailedWorkers(failedWorkers.keySet()))
+          excludeFailedWorkers(failedWorkers != null ? failedWorkers.keySet() : null))
           .setBlockId(blockId).setBlockSize(info.getLength()));
       if (dataSource == null) {
         throw new UnavailableException(ExceptionMessage.NO_WORKER_AVAILABLE.getMessage());
@@ -214,13 +215,18 @@ public final class AlluxioBlockStore {
     } catch (ConnectException e) {
       //When BlockInStream created failed, it will update the passed-in failedWorkers
       //to attempt to avoid reading from this failed worker in next try.
-      failedWorkers.put(dataSource, System.currentTimeMillis());
+      if (failedWorkers != null) {
+        failedWorkers.put(dataSource, System.currentTimeMillis());
+      }
       throw e;
     }
   }
 
   private List<BlockLocation> excludeFailedWorkersInBlockLocation(List<BlockLocation> locations,
       Set<WorkerNetAddress> failedWorkers) {
+    if (failedWorkers == null) {
+      return locations;
+    }
     locations.removeIf(loc -> failedWorkers.contains(loc));
     return locations;
   }
@@ -228,7 +234,7 @@ public final class AlluxioBlockStore {
   private List<BlockWorkerInfo> excludeFailedWorkers(Set<WorkerNetAddress> failedWorkers) {
     List<BlockWorkerInfo> infoList = new ArrayList<>();
     for (BlockWorkerInfo workerInfo : mAllBlockWorkersInfo) {
-      if (failedWorkers.contains(workerInfo)) {
+      if (failedWorkers != null && failedWorkers.contains(workerInfo)) {
         LOG.info("{} is excluded temporarily", workerInfo.getNetAddress().getHost());
         continue;
       }
