@@ -359,6 +359,7 @@ public class FileInStream extends InputStream implements BoundedStream, Position
     // Send an async cache request to a worker based on read type and passive cache options.
     boolean cache = mOptions.getOptions().getReadType().isCache();
     if (cache) {
+      LOG.info("Cache local!");
       updateCacheStream(blockId);
     }
     /*
@@ -395,6 +396,7 @@ public class FileInStream extends InputStream implements BoundedStream, Position
       return;
     }
 
+    LOG.info("Source: {}", mBlockInStream.getSource());
     if (mBlockInStream.getSource() == BlockInStream.BlockInStreamSource.LOCAL) {
       return;
     }
@@ -402,6 +404,7 @@ public class FileInStream extends InputStream implements BoundedStream, Position
       return;
     }
 
+    LOG.info("Create local cache stream.");
     try {
       WorkerNetAddress localWorker = mContext.getLocalWorker();
       if (localWorker != null) {

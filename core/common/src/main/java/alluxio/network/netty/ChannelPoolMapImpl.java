@@ -96,13 +96,13 @@ public class ChannelPoolMapImpl extends AbstractChannelPoolMap<SocketAddress, Fi
 
     @Override
     public void channelReleased(Channel channel) {
-      LOG.info("Channel {} is released.", channel);
+      LOG.debug("Channel {} is released.", channel);
       idleChannels.put(channel, System.currentTimeMillis());
     }
 
     @Override
     public void channelAcquired(Channel channel) {
-      LOG.info("Channel {} is acquired.", channel);
+      LOG.debug("Channel {} is acquired.", channel);
       idleChannels.remove(channel);
     }
 
