@@ -19,9 +19,13 @@ import alluxio.client.BoundedStream;
 import alluxio.client.PositionedReadable;
 import alluxio.client.block.AlluxioBlockStore;
 import alluxio.client.block.stream.BlockInStream;
+import alluxio.client.block.stream.BlockOutStream;
 import alluxio.client.file.options.InStreamOptions;
+import alluxio.client.file.options.OutStreamOptions;
 import alluxio.exception.PreconditionMessage;
+import alluxio.exception.status.AlreadyExistsException;
 import alluxio.exception.status.DeadlineExceededException;
+import alluxio.exception.status.NotFoundException;
 import alluxio.exception.status.UnavailableException;
 import alluxio.network.netty.NettyRPC;
 import alluxio.network.netty.NettyRPCContext;
@@ -31,6 +35,7 @@ import alluxio.util.proto.ProtoMessage;
 import alluxio.wire.WorkerNetAddress;
 
 import com.google.common.base.Preconditions;
+import com.google.common.base.Throwables;
 import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,6 +87,8 @@ public class FileInStream extends InputStream implements BoundedStream, Position
 
   private final URIStatus mStatus;
   private final InStreamOptions mOptions;
+  /** The outstream options. */
+  private OutStreamOptions mOutStreamOptions;
   private final AlluxioBlockStore mBlockStore;
   private final FileSystemContext mContext;
 
@@ -96,6 +103,11 @@ public class FileInStream extends InputStream implements BoundedStream, Position
   private long mPosition;
   /** Underlying block stream, null if a position change has invalidated the previous stream. */
   private BlockInStream mBlockInStream;
+  /**
+   * Current block out stream writing the data into the local worker. This is only used when the in
+   * stream reads from a remote worker.
+   */
+  protected BlockOutStream mCurrentCacheStream;
 
   /** A map of worker addresses to the most recent epoch time when client fails to read from it. */
   private Map<WorkerNetAddress, Long> mFailedWorkers = new HashMap<>();
@@ -116,6 +128,8 @@ public class FileInStream extends InputStream implements BoundedStream, Position
 
     mPosition = 0;
     mBlockInStream = null;
+
+    mOutStreamOptions = OutStreamOptions.defaults();
   }
 
   /* Input Stream methods */
@@ -132,6 +146,18 @@ public class FileInStream extends InputStream implements BoundedStream, Position
         int result = mBlockInStream.read();
         if (result != -1) {
           mPosition++;
+          if (mCurrentCacheStream != null) {
+            try {
+              mCurrentCacheStream.write(result);
+            } catch (Exception e) {
+              if (e instanceof IOException) {
+                handleCacheStreamException((IOException) e);
+              } else {
+                LOG.warn("Closing cache stream due to {}.", e.getMessage());
+                closeOrCancelCacheStream();
+              }
+            }
+          }
         }
         return result;
       } catch (UnavailableException | DeadlineExceededException | ConnectException e) {
@@ -171,6 +197,18 @@ public class FileInStream extends InputStream implements BoundedStream, Position
         updateStream();
         int bytesRead = mBlockInStream.read(b, currentOffset, bytesLeft);
         if (bytesRead > 0) {
+          if (mCurrentCacheStream != null) {
+            try {
+              mCurrentCacheStream.write(b, currentOffset, bytesLeft);
+            } catch (Exception e) {
+              if (e instanceof IOException) {
+                handleCacheStreamException((IOException) e);
+              } else {
+                LOG.warn("Closing cache stream due to {}.", e.getMessage());
+                closeOrCancelCacheStream();
+              }
+            }
+          }
           bytesLeft -= bytesRead;
           currentOffset += bytesRead;
           mPosition += bytesRead;
@@ -205,6 +243,7 @@ public class FileInStream extends InputStream implements BoundedStream, Position
   @Override
   public void close() throws IOException {
     closeBlockInStream(mBlockInStream);
+    closeOrCancelCacheStream();
   }
 
   /* Bounded Stream methods */
@@ -295,6 +334,12 @@ public class FileInStream extends InputStream implements BoundedStream, Position
    */
   private void updateStream() throws IOException {
     if (mBlockInStream != null && mBlockInStream.remaining() > 0) { // can still read from stream
+      if (mCurrentCacheStream != null &&
+          mCurrentCacheStream.remaining() != mBlockInStream.remaining()) {
+        LOG.info("BlockInStream and CacheStream is out of sync %d %d.",
+          mBlockInStream.remaining(), mCurrentCacheStream.remaining());
+        closeOrCancelCacheStream();
+      }
       return;
     }
 
@@ -313,6 +358,10 @@ public class FileInStream extends InputStream implements BoundedStream, Position
 
     // Send an async cache request to a worker based on read type and passive cache options.
     boolean cache = mOptions.getOptions().getReadType().isCache();
+    if (cache) {
+      updateCacheStream(blockId);
+    }
+    /*
     if (cache && !alreadCachedBlocks.contains(blockId)) {
       alreadCachedBlocks.add(blockId);
       LOG.info("Passively caching block {}", blockId);
@@ -327,12 +376,63 @@ public class FileInStream extends InputStream implements BoundedStream, Position
         }
       });
     }
+    */
 
     // Set the stream to the correct position.
     long offset = mPosition % mBlockSize;
     LOG.info("Reading block {} at offset {} from {} worker {}.",
       blockId, offset, mBlockInStream.getSource(), mBlockInStream.getAddress().getHost());
     mBlockInStream.seek(offset);
+  }
+
+  private void updateCacheStream(long blockId) {
+    if (mCurrentCacheStream == null || mCurrentCacheStream.remaining() == 0) {
+      closeOrCancelCacheStream();
+    }
+
+    if (blockId < 0) {
+      // End of file.
+      return;
+    }
+
+    if (mBlockInStream.getSource() != BlockInStream.BlockInStreamSource.REMOTE) {
+      return;
+    }
+    if (getPos() % mBlockSize != 0) {
+      return;
+    }
+
+    try {
+      WorkerNetAddress localWorker = mContext.getLocalWorker();
+      if (localWorker != null) {
+        mCurrentCacheStream =
+          mBlockStore.getOutStream(blockId, getBlockSize(getPos()), localWorker, mOutStreamOptions);
+      }
+    } catch (Exception e) {
+      if (e instanceof IOException) {
+        handleCacheStreamException((IOException) e);
+      } else {
+        LOG.warn("Closing cache stream due to {}.", e.getMessage());
+        closeOrCancelCacheStream();
+      }
+    }
+  }
+
+  /**
+   * If we are not in the last block or if the last block is equal to the normal block size, return
+   * the normal block size. Otherwise return the block size of the last block.
+   *
+   * @param pos the position to get the block size for
+   * @return the size of the block that covers pos
+   */
+  private long getBlockSize(long pos) {
+    // The size of the last block, 0 if it is equal to the normal block size
+    long lastBlockSize = mStatus.getLength() % mBlockSize;
+    if (mStatus.getLength() - pos > lastBlockSize) {
+      return mBlockSize;
+    } else {
+      return lastBlockSize;
+    }
   }
 
   private void passiveCacheRemote(long blockId) throws IOException {
@@ -387,5 +487,56 @@ public class FileInStream extends InputStream implements BoundedStream, Position
     }
 
     mFailedWorkers.put(workerAddress, System.currentTimeMillis());
+  }
+
+  /**
+   * Handles IO exceptions thrown in response to the worker cache request. Cache stream is closed or
+   * cancelled after logging some messages about the exceptions.
+   *
+   * @param e the exception to handle
+   */
+  private void handleCacheStreamException(IOException e) {
+    if (Throwables.getRootCause(e) instanceof AlreadyExistsException) {
+      // This can happen if there are two readers trying to cache the same block. The first one
+      // created the block (either as temp block or committed block). The second sees this
+      // exception.
+      LOG.info("The block is already stored in the target worker, canceling the cache request.");
+    } else {
+      LOG.warn("The block could not be cached into Alluxio storage: {}", e.toString());
+    }
+    closeOrCancelCacheStream();
+  }
+
+  /**
+   * Closes or cancels {@link #mCurrentCacheStream}.
+   */
+  private void closeOrCancelCacheStream() {
+    if (mCurrentCacheStream == null) {
+      return;
+    }
+    try {
+      if (mCurrentCacheStream.remaining() == 0) {
+        mCurrentCacheStream.close();
+      } else {
+        mCurrentCacheStream.cancel();
+      }
+    } catch (NotFoundException e) {
+      // This happens if two concurrent readers read trying to cache the same block. One cancelled
+      // before the other. Then the other reader will see this exception since we only keep
+      // one block per blockId in block worker.
+      LOG.info("Block does not exist when being cancelled.");
+    } catch (AlreadyExistsException e) {
+      // This happens if two concurrent readers trying to cache the same block. One successfully
+      // committed. The other reader sees this.
+      LOG.info("Block exists.");
+    } catch (IOException e) {
+      // This happens when there are any other cache stream close/cancel related errors (e.g.
+      // server unreachable due to network partition, server busy due to Alluxio worker is
+      // busy, timeout due to congested network etc). But we want to proceed since we want
+      // the user to continue reading when one Alluxio worker is having trouble.
+      LOG.info("Closing or cancelling the cache stream encountered IOException {}, reading from "
+        + "the regular stream won't be affected.", e.getMessage());
+    }
+    mCurrentCacheStream = null;
   }
 }
