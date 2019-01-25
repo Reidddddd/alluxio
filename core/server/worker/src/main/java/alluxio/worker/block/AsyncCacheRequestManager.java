@@ -73,6 +73,8 @@ public class AsyncCacheRequestManager {
     mRemoteCacheExecutor = new ThreadPoolExecutor(capacityB, capacityB, Constants.SECOND_MS * 10,
       TimeUnit.MILLISECONDS, dynamicShiftQueue.getDynamicQueueB());
     service.submit(new Picker());
+    service.submit(new Picker());
+    service.submit(new Picker());
   }
 
   private class Picker implements Runnable {
