@@ -63,6 +63,7 @@ public final class AlluxioBlockStore {
   private List<BlockWorkerInfo> mAllBlockWorkersInfo;
   private List<WorkerNetAddress> mCacheAllWorkersAddress;
 
+  private static AlluxioBlockStore self;
   /**
    * Creates an Alluxio block store with default file system context and default local hostname.
    *
@@ -79,7 +80,10 @@ public final class AlluxioBlockStore {
    * @return the {@link AlluxioBlockStore} created
    */
   public static AlluxioBlockStore create(FileSystemContext context) {
-    return new AlluxioBlockStore(context, TieredIdentityFactory.localIdentity());
+    if (self == null) {
+      self = new AlluxioBlockStore(context, TieredIdentityFactory.localIdentity());
+    }
+    return self;
   }
 
   /**
