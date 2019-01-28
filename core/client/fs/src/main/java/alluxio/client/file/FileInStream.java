@@ -40,8 +40,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -106,7 +104,6 @@ public class FileInStream extends InputStream
   /** The read buffer in file seek. This is used in {@link #readCurrentBlockToEnd()}. */
   private byte[] mSeekBuffer;
 
-  private static final ExecutorService service = Executors.newCachedThreadPool();
   /**
    * Creates a new file input stream.
    *
@@ -206,21 +203,16 @@ public class FileInStream extends InputStream
 
     mPos++;
     if (mCurrentCacheStream != null) {
-      service.submit(new Runnable() {
-        @Override
-        public void run() {
-          try {
-            mCurrentCacheStream.write(data);
-          } catch (Exception e) {
-            if (e instanceof IOException) {
-              handleCacheStreamException((IOException) e);
-            } else {
-              LOG.warn("Closing cache stream due to {}.", e.getMessage());
-              closeOrCancelCacheStream();
-            }
-          }
+      try {
+        mCurrentCacheStream.write(data);
+      } catch (Exception e) {
+        if (e instanceof IOException) {
+          handleCacheStreamException((IOException) e);
+        } else {
+          LOG.warn("Closing cache stream due to {}.", e.getMessage());
+          closeOrCancelCacheStream();
         }
-      });
+      }
     }
     return data;
   }
@@ -251,23 +243,16 @@ public class FileInStream extends InputStream
       }
       if (bytesRead > 0) {
         if (mCurrentCacheStream != null) {
-          final int offset = currentOffset;
-          final int read = bytesRead;
-          service.submit(new Runnable() {
-            @Override
-            public void run() {
-              try {
-                mCurrentCacheStream.write(b, offset, read);
-              } catch (Exception e) {
-                if (e instanceof IOException) {
-                  handleCacheStreamException((IOException) e);
-                } else {
-                  LOG.warn("Closing cache stream due to {}.", e.getMessage());
-                  closeOrCancelCacheStream();
-                }
-              }
+          try {
+            mCurrentCacheStream.write(b, currentOffset, bytesLeftToRead);
+          } catch (Exception e) {
+            if (e instanceof IOException) {
+              handleCacheStreamException((IOException) e);
+            } else {
+              LOG.warn("Closing cache stream due to {}.", e.getMessage());
+              closeOrCancelCacheStream();
             }
-          });
+          }
         }
         mPos += bytesRead;
         bytesLeftToRead -= bytesRead;
@@ -412,7 +397,7 @@ public class FileInStream extends InputStream
     }
     if (mCurrentCacheStream != null
         && mCurrentBlockInStream.remaining() != mCurrentCacheStream.remaining()) {
-      LOG.info("BlockInStream and CacheStream is out of sync %d %d.",
+      LOG.info("BlockInStream and CacheStream is out of sync {} {}.",
         mCurrentBlockInStream.remaining(), mCurrentCacheStream.remaining());
       closeOrCancelCacheStream();
       return true;
