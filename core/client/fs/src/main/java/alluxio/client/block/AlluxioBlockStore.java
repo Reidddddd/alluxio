@@ -163,6 +163,9 @@ public final class AlluxioBlockStore {
    */
   public BlockInStream getInStream(long blockId, InStreamOptions options,
       Map<WorkerNetAddress, Long> failedWorkers) throws IOException {
+    if (failedWorkers == null) {
+      failedWorkers = Collections.EMPTY_MAP;
+    }
     // Get the latest block info from master
     BlockInfo info;
     try (CloseableResource<BlockMasterClient> masterClientResource =
@@ -174,8 +177,7 @@ public final class AlluxioBlockStore {
     WorkerNetAddress dataSource = null;
     List<BlockLocation> locations = info.getLocations();
     if (!locations.isEmpty()) {
-      excludeFailedWorkersInBlockLocation(locations,
-        failedWorkers != null ? failedWorkers.keySet() : null);
+      excludeFailedWorkersInBlockLocation(locations, failedWorkers.keySet());
       for (BlockLocation location : locations) {
         WorkerNetAddress workerAddress = location.getWorkerAddress();
         if (mLocalWorker != null &&
@@ -203,7 +205,7 @@ public final class AlluxioBlockStore {
       BlockLocationPolicy policy = options.getOptions().getUfsReadLocationPolicy();
       dataSource = policy.getWorker(
         GetWorkerOptions.defaults().setBlockWorkerInfos(
-          excludeFailedWorkers(failedWorkers != null ? failedWorkers.keySet() : null))
+          excludeFailedWorkers(failedWorkers.keySet()))
           .setBlockId(blockId).setBlockSize(info.getLength()));
       if (dataSource == null) {
         throw new UnavailableException(ExceptionMessage.NO_WORKER_AVAILABLE.getMessage());
@@ -215,16 +217,14 @@ public final class AlluxioBlockStore {
     } catch (ConnectException e) {
       //When BlockInStream created failed, it will update the passed-in failedWorkers
       //to attempt to avoid reading from this failed worker in next try.
-      if (failedWorkers != null) {
-        failedWorkers.put(dataSource, System.currentTimeMillis());
-      }
+      failedWorkers.put(dataSource, System.currentTimeMillis());
       throw e;
     }
   }
 
   private List<BlockLocation> excludeFailedWorkersInBlockLocation(List<BlockLocation> locations,
       Set<WorkerNetAddress> failedWorkers) {
-    if (failedWorkers == null) {
+    if (failedWorkers.isEmpty()) {
       return locations;
     }
     locations.removeIf(loc -> failedWorkers.contains(loc));
@@ -234,7 +234,7 @@ public final class AlluxioBlockStore {
   private List<BlockWorkerInfo> excludeFailedWorkers(Set<WorkerNetAddress> failedWorkers) {
     List<BlockWorkerInfo> infoList = new ArrayList<>();
     for (BlockWorkerInfo workerInfo : mAllBlockWorkersInfo) {
-      if (failedWorkers != null && failedWorkers.contains(workerInfo)) {
+      if (failedWorkers.contains(workerInfo)) {
         LOG.info("{} is excluded temporarily", workerInfo.getNetAddress().getHost());
         continue;
       }
@@ -242,20 +242,6 @@ public final class AlluxioBlockStore {
         workerInfo.getUsedBytes()));
     }
     return infoList;
-  }
-
-  private Set<WorkerNetAddress> handleFailedWorkers(Set<WorkerNetAddress> workers,
-      Map<WorkerNetAddress, Long> failedWorkers) {
-    if (workers.isEmpty()) {
-      return Collections.EMPTY_SET;
-    }
-    Set<WorkerNetAddress> nonFailed =
-        workers.stream().filter(worker -> !failedWorkers.containsKey(worker)).collect(toSet());
-    if (nonFailed.isEmpty()) {
-      return Collections.singleton(workers.stream()
-          .min((x, y) -> Long.compare(failedWorkers.get(x), failedWorkers.get(y))).get());
-    }
-    return nonFailed;
   }
 
   /**
