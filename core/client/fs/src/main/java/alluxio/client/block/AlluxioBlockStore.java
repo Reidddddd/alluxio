@@ -80,11 +80,10 @@ public final class AlluxioBlockStore {
    * @return the {@link AlluxioBlockStore} created
    */
   public static AlluxioBlockStore create(FileSystemContext context) {
-    return new AlluxioBlockStore(context, TieredIdentityFactory.localIdentity());
-    //if (self == null) {
-    //  self = new AlluxioBlockStore(context, TieredIdentityFactory.localIdentity());
-    //}
-    //return self;
+    if (self == null) {
+      self = new AlluxioBlockStore(context, TieredIdentityFactory.localIdentity());
+    }
+    return self;
   }
 
   /**
