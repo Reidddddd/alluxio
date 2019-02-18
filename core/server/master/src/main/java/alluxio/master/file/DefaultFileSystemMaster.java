@@ -3469,6 +3469,7 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
           UfsSyncUtils.computeSyncPlan(inode, ufsFpParsed, containsMountPoint);
 
       if (syncPlan.toUpdateMetaData()) {
+        LOG.info("SyncPlan#UpdateMetaData");
         // UpdateMetadata is used when a file or a directory only had metadata change.
         // It works by calling SetAttributeInternal on the inodePath.
         if (ufsFpParsed.isValid()) {
@@ -3485,6 +3486,7 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
         }
       }
       if (syncPlan.toDelete()) {
+        LOG.info("SyncPlan#Delete");
         try {
           deleteInternal(rpcContext, inodePath, false, System.currentTimeMillis(),
               syncDeleteOptions);
@@ -3496,11 +3498,13 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
         }
       }
       if (syncPlan.toLoadMetadata()) {
+        LOG.info("SyncPlan#LoadMetadata");
         AlluxioURI mountUri = new AlluxioURI(mMountTable.getMountPoint(inodePath.getUri()));
         pathsToLoad.add(mountUri.getPath());
       }
       if (syncPlan.toSyncChildren() && inode instanceof InodeDirectory
           && syncDescendantType != DescendantType.NONE) {
+        LOG.info("SyncPlan#SyncChildren,InodeDirectory");
         InodeDirectory inodeDir = (InodeDirectory) inode;
         // maps children name to inode
         Map<String, Inode<?>> inodeChildren = new HashMap<>();
