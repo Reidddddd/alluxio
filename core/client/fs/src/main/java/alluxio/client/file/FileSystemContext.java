@@ -25,7 +25,7 @@ import alluxio.heartbeat.HeartbeatThread;
 import alluxio.master.MasterClientConfig;
 import alluxio.master.MasterInquireClient;
 import alluxio.metrics.MetricsSystem;
-import alluxio.network.netty.NettyChannelPool;
+import alluxio.network.netty.ChannelPoolMapImpl;
 import alluxio.network.netty.NettyClient;
 import alluxio.resource.CloseableResource;
 import alluxio.util.CommonUtils;
@@ -50,7 +50,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -98,8 +98,7 @@ public final class FileSystemContext implements Closeable {
   private int mRefCount;
 
   // The netty data server channel pools.
-  private final ConcurrentHashMap<SocketAddress, NettyChannelPool>
-      mNettyChannelPools = new ConcurrentHashMap<>();
+  private ChannelPoolMapImpl mPool = new ChannelPoolMapImpl();
 
   /** The shared master inquire client associated with the {@link FileSystemContext}. */
   @GuardedBy("this")
@@ -261,10 +260,7 @@ public final class FileSystemContext implements Closeable {
     mBlockMasterClientPool = null;
     mMasterInquireClient = null;
 
-    for (NettyChannelPool pool : mNettyChannelPools.values()) {
-      pool.close();
-    }
-    mNettyChannelPools.clear();
+    mPool.close();
 
     synchronized (this) {
       if (mMetricsMasterClient != null) {
@@ -383,19 +379,13 @@ public final class FileSystemContext implements Closeable {
    */
   public Channel acquireNettyChannel(final WorkerNetAddress workerNetAddress) throws IOException {
     SocketAddress address = NetworkAddressUtils.getDataPortSocketAddress(workerNetAddress);
-    if (!mNettyChannelPools.containsKey(address)) {
-      Bootstrap bs = NettyClient.createClientBootstrap(address);
-      bs.remoteAddress(address);
-      NettyChannelPool pool = new NettyChannelPool(bs,
-          Configuration.getInt(PropertyKey.USER_NETWORK_NETTY_CHANNEL_POOL_SIZE_MIN),
-          Configuration.getInt(PropertyKey.USER_NETWORK_NETTY_CHANNEL_POOL_SIZE_MAX),
-          Configuration.getMs(PropertyKey.USER_NETWORK_NETTY_CHANNEL_POOL_GC_THRESHOLD_MS));
-      if (mNettyChannelPools.putIfAbsent(address, pool) != null) {
-        // This can happen if this function is called concurrently.
-        pool.close();
-      }
+    Bootstrap bs = NettyClient.createBootstrap(address).remoteAddress(address);
+    mPool.put(address, bs);
+    try {
+      return mPool.get(address).acquire().get();
+    } catch (ExecutionException | InterruptedException e) {
+      throw new IOException(e);
     }
-    return mNettyChannelPools.get(address).acquire();
   }
 
   /**
@@ -406,8 +396,8 @@ public final class FileSystemContext implements Closeable {
    */
   public void releaseNettyChannel(WorkerNetAddress workerNetAddress, Channel channel) {
     SocketAddress address = NetworkAddressUtils.getDataPortSocketAddress(workerNetAddress);
-    if (mNettyChannelPools.containsKey(address)) {
-      mNettyChannelPools.get(address).release(channel);
+    if (mPool.contains(address)) {
+      mPool.get(address).release(channel);
     } else {
       LOG.warn("No channel pool for address {}, closing channel instead. Context is closed: {}",
           address, mClosed.get());
@@ -526,11 +516,7 @@ public final class FileSystemContext implements Closeable {
           new Gauge<Long>() {
             @Override
             public Long getValue() {
-              long ret = 0;
-              for (NettyChannelPool pool : get().mNettyChannelPools.values()) {
-                ret += pool.size();
-              }
-              return ret;
+              return get().mPool.allSize();
             }
           });
     }
