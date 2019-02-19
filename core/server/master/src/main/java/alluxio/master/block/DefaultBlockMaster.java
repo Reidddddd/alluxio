@@ -174,6 +174,9 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
   /** Keeps track of workers which are no longer in communication with the master. */
   private final IndexedSet<MasterWorkerInfo> mLostWorkers =
       new IndexedSet<>(ID_INDEX, ADDRESS_INDEX);
+  /** Keeps track of block replicas. */
+  private final ReplicaManager mReplicaManager = new ReplicaManager();
+
   /** Worker is not visualable until registration completes. */
   private final IndexedSet<MasterWorkerInfo> mTempWorkers =
       new IndexedSet<>(ID_INDEX, ADDRESS_INDEX);
@@ -315,6 +318,9 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       mLostWorkerDetectionService = getExecutorService().submit(new HeartbeatThread(
           HeartbeatContext.MASTER_LOST_WORKER_DETECTION, new LostWorkerDetectionHeartbeatExecutor(),
           (int) Configuration.getMs(PropertyKey.MASTER_WORKER_HEARTBEAT_INTERVAL)));
+      getExecutorService().submit(new HeartbeatThread(
+        HeartbeatContext.MASTER_REPLICA_CLEANER, new ReplicaCleanerHeartbeatExecutor(),
+        Configuration.getMs(PropertyKey.MASTER_REPLICA_CLEANER_INTERVAL_MS)));
     }
   }
 
@@ -611,6 +617,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
             worker.addBlock(blockId);
             worker.updateUsedBytes(tierAlias, usedBytesOnTier);
             worker.updateLastUpdatedTimeMs();
+            mReplicaManager.replicaPromoteOrEvict(blockId, block,
+              ReplicaManager.ReplicaAction.PROMOTE, worker.getWorkerAddress().getHost());
           }
           break;
         }
@@ -878,6 +886,12 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
   @GuardedBy("workerInfo")
   private void processWorkerRemovedBlocks(MasterWorkerInfo workerInfo,
       Collection<Long> removedBlockIds) {
+    if (!removedBlockIds.isEmpty()) {
+      LOG.info("{} blocks, {}MB are removed from {}.",
+        removedBlockIds.size(),
+        readableMegaBytes(removedBlockIds),
+        workerInfo.getWorkerAddress().getHost());
+    }
     for (long removedBlockId : removedBlockIds) {
       MasterBlockInfo block = mBlocks.get(removedBlockId);
       // TODO(calvin): Investigate if this branching logic can be simplified.
@@ -892,14 +906,24 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         continue;
       }
       synchronized (block) {
-        LOG.info("Block {} is removed on worker {}.", removedBlockId, workerInfo.getId());
         workerInfo.removeBlock(block.getBlockId());
         block.removeWorker(workerInfo.getId());
         if (block.getNumLocations() == 0) {
           mLostBlocks.add(removedBlockId);
         }
+        mReplicaManager.replicaPromoteOrEvict(removedBlockId, block,
+          ReplicaManager.ReplicaAction.EVICT, workerInfo.getWorkerAddress().getHost());
       }
     }
+  }
+
+  private static final long MB = 1048576;
+  private long readableMegaBytes(Collection<Long> blocks) {
+    long bytes = 0L;
+    for (long block : blocks) {
+      bytes += mBlocks.get(block).getLength();
+    }
+    return bytes / MB;
   }
 
   /**
@@ -919,6 +943,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
             workerInfo.addBlock(blockId);
             block.addWorker(workerInfo.getId(), entry.getKey());
             mLostBlocks.remove(blockId);
+            mReplicaManager.replicaPromoteOrEvict(blockId, block,
+              ReplicaManager.ReplicaAction.PROMOTE, workerInfo.getWorkerAddress().getHost());
           }
         } else {
           LOG.warn("Invalid block: {} from worker {}.", blockId,
@@ -1027,6 +1053,106 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
     @Override
     public void close() {
       // Nothing to clean up
+    }
+  }
+
+  /**
+   * Periodically clean excess blocks
+   */
+  private final class ReplicaCleanerHeartbeatExecutor implements HeartbeatExecutor {
+    /** Unit is interval between each heartbeat. */
+    private long mCleanUnit;
+    /** Last time of major replica clean. */
+    private long mLastMajorCleanTimeMs;
+    /** Last time of minor replica clean. */
+    private long mLastMinorCleanTimeMs;
+    /** Threshold for major clean, replica that exceeds this will trigger a major replica clean.*/
+    private int mMajorReplicaThreshold;
+    /** Threshold for minor clean, replica that exceeds this will trigger a minor replica clean.*/
+    private int mMinorReplicaThreshold;
+    /** Interval between major replica clean. */
+    private int mMajorUnit;
+    /** Interval between minor replica clean. */
+    private int mMinorUnit;
+    /** Policy to choose which worker to clean a replica. */
+    private ReplicaChoicePolicy mChooseReplica;
+
+    ReplicaCleanerHeartbeatExecutor() {
+      mCleanUnit = Configuration.getMs(PropertyKey.MASTER_REPLICA_CLEANER_INTERVAL_MS);
+      mMinorReplicaThreshold = Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD);
+      mMajorReplicaThreshold = Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD);
+      if (mMinorReplicaThreshold < mMajorReplicaThreshold) {
+        throw new IllegalArgumentException(
+          String.format("%s should >= %s",
+            PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD,
+            PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD));
+      }
+      mMinorUnit = Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT);
+      mMajorUnit = Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT);
+      if (mMinorUnit > mMajorUnit) {
+        throw new IllegalArgumentException(
+          String.format("%s should <= %s",
+            PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT,
+            PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT));
+      }
+      mLastMajorCleanTimeMs = mLastMinorCleanTimeMs = mClock.millis();
+      mChooseReplica = ReplicaChoicePolicy.Factory.create(
+        Configuration.get(PropertyKey.MASTER_REPLICA_CHOOSE_WORKER_POLICY_CLASS));
+    }
+
+    @Override
+    public void heartbeat() {
+      long currentMs = mClock.millis();
+      if (currentMs - mLastMajorCleanTimeMs >= mMajorUnit * mCleanUnit) {
+        LOG.info("Start major clean, targets are replicas over level: {}", mMajorReplicaThreshold);
+        cleanExcessReplica(mMajorReplicaThreshold);
+        mLastMajorCleanTimeMs = mClock.millis();
+        return;
+      }
+      if (currentMs - mLastMinorCleanTimeMs >= mMinorUnit * mCleanUnit) {
+        LOG.info("Start minor clean, targets are replicas over level: {}", mMinorReplicaThreshold);
+        cleanExcessReplica(mMinorReplicaThreshold);
+        mLastMinorCleanTimeMs = mClock.millis();
+        return;
+      }
+    }
+
+    /**
+     * Clean block's replica that exceed threshold.
+     * @param threshold replica threshold
+     */
+    private void cleanExcessReplica(int threshold) {
+      long toBeCleaned = 0L;
+      for (long blockId : mReplicaManager.fetchBlocksAboveLevel(threshold)) {
+        if (!mBlocks.containsKey(blockId)) {
+          LOG.info("Remove invalid block {} from replica manager.", blockId);
+          mReplicaManager.removeInvalidBlock(blockId);
+          continue;
+        }
+        Set<Long> workerIds = mBlocks.get(blockId).getWorkers();
+        List<MasterWorkerInfo> workers = new ArrayList<>(workerIds.size());
+        for (long workerId : workerIds) {
+          workers.add(mWorkers.getFirstByField(ID_INDEX, workerId));
+        }
+        List<MasterWorkerInfo> workerList = mChooseReplica.pickUpWorker(workers, threshold);
+        for (MasterWorkerInfo worker : workerList) {
+          synchronized (worker) {
+            worker.updateToRemovedBlock(true, blockId);
+            toBeCleaned++;
+          }
+        }
+      }
+      LOG.info("{} replicas are going to be cleaned.", toBeCleaned);
+    }
+
+    @Override
+    public void close() {
+      // Nothing to do
+    }
+
+    @Override
+    public String toString() {
+      return "ReplicaCleanerHeartbeatExecutor";
     }
   }
 
