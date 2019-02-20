@@ -14,6 +14,8 @@ package alluxio.master.block;
 import alluxio.Configuration;
 import alluxio.Constants;
 import alluxio.MasterStorageTierAssoc;
+import alluxio.OnlineReconfigManager;
+import alluxio.OnlineReconfigObserver;
 import alluxio.PropertyKey;
 import alluxio.Server;
 import alluxio.StorageTierAssoc;
@@ -88,6 +90,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1059,7 +1062,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
   /**
    * Periodically clean excess blocks
    */
-  private final class ReplicaCleanerHeartbeatExecutor implements HeartbeatExecutor {
+  private final class ReplicaCleanerHeartbeatExecutor implements HeartbeatExecutor,
+      OnlineReconfigObserver {
     /** Unit is interval between each heartbeat. */
     private long mCleanUnit;
     /** Last time of major replica clean. */
@@ -1076,45 +1080,104 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
     private int mMinorUnit;
     /** Policy to choose which worker to clean a replica. */
     private ReplicaChoicePolicy mChooseReplica;
+    /** Flag to indicate current thread is cleaning. */
+    private AtomicBoolean mCleaningFlag;
+    /** Flag to indicate it need reconfiguration. */
+    private AtomicBoolean mReconfiguration;
+
 
     ReplicaCleanerHeartbeatExecutor() {
       mCleanUnit = Configuration.getMs(PropertyKey.MASTER_REPLICA_CLEANER_INTERVAL_MS);
+      initialize();
+      mLastMajorCleanTimeMs = mLastMinorCleanTimeMs = mClock.millis();
+      mCleaningFlag = new AtomicBoolean(false);
+      mReconfiguration = new AtomicBoolean(false);
+      mChooseReplica = ReplicaChoicePolicy.Factory.create(
+        Configuration.get(PropertyKey.MASTER_REPLICA_CHOOSE_WORKER_POLICY_CLASS));
+      OnlineReconfigManager.getInstance().registerObserver(this);
+    }
+
+    private void initialize() {
       mMinorReplicaThreshold = Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD);
       mMajorReplicaThreshold = Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD);
       if (mMinorReplicaThreshold < mMajorReplicaThreshold) {
-        throw new IllegalArgumentException(
-          String.format("%s should >= %s",
-            PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD,
-            PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD));
+        LOG.warn(String.format("%s should >= %s, system will exchange two values.",
+          PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD,
+          PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD));
+        mMinorReplicaThreshold = Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD);
+        mMajorReplicaThreshold = Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD);
       }
+
       mMinorUnit = Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT);
       mMajorUnit = Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT);
       if (mMinorUnit > mMajorUnit) {
-        throw new IllegalArgumentException(
-          String.format("%s should <= %s",
-            PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT,
-            PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT));
+        LOG.warn(String.format("%s should <= %s, system will exchange two values.",
+          PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT,
+          PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT));
+        mMinorUnit = Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT);
+        mMajorUnit = Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT);
       }
-      mLastMajorCleanTimeMs = mLastMinorCleanTimeMs = mClock.millis();
-      mChooseReplica = ReplicaChoicePolicy.Factory.create(
-        Configuration.get(PropertyKey.MASTER_REPLICA_CHOOSE_WORKER_POLICY_CLASS));
     }
 
     @Override
     public void heartbeat() {
-      long currentMs = mClock.millis();
-      if (currentMs - mLastMajorCleanTimeMs >= mMajorUnit * mCleanUnit) {
-        LOG.info("Start major clean, targets are replicas over level: {}", mMajorReplicaThreshold);
-        cleanExcessReplica(mMajorReplicaThreshold);
-        mLastMajorCleanTimeMs = mClock.millis();
+      try {
+        mCleaningFlag.set(true);
+        long currentMs = mClock.millis();
+        if (currentMs - mLastMajorCleanTimeMs >= mMajorUnit * mCleanUnit) {
+          LOG.info("Start major clean, targets are replicas over level: {}", mMajorReplicaThreshold);
+          cleanExcessReplica(mMajorReplicaThreshold);
+          mLastMajorCleanTimeMs = mClock.millis();
+          return;
+        }
+        if (currentMs - mLastMinorCleanTimeMs >= mMinorUnit * mCleanUnit) {
+          LOG.info("Start minor clean, targets are replicas over level: {}", mMinorReplicaThreshold);
+          cleanExcessReplica(mMinorReplicaThreshold);
+          mLastMinorCleanTimeMs = mClock.millis();
+          return;
+        }
+      } finally {
+        mCleaningFlag.set(false);
+      }
+
+      if (mReconfiguration.getAndSet(false)) {
+        initialize();
+      }
+    }
+
+    @Override
+    public boolean needUpdate() {
+      boolean update = false;
+      if (mMinorReplicaThreshold != Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD)) {
+        LOG.info("minor.replica.threshold is updated from {} to {}", mMinorReplicaThreshold,
+          Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_THRESHOLD));
+        update = true;
+      }
+      if (mMajorReplicaThreshold != Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD)) {
+        LOG.info("major.replica.threshold is updated from {} to {}", mMajorReplicaThreshold,
+          Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_THRESHOLD));
+        update = true;
+      }
+      if (mMinorUnit != Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT)) {
+        LOG.info("minor.replica.clean.unit is updated from {} to {}", mMinorUnit,
+          Configuration.getInt(PropertyKey.MASTER_REPLICA_MINOR_CLEAN_UNIT));
+        update = true;
+      }
+      if (mMajorUnit != Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT)) {
+        LOG.info("major.replica.clean.unit is updated from {} to {}", mMajorUnit,
+          Configuration.getInt(PropertyKey.MASTER_REPLICA_MAJOR_CLEAN_UNIT));
+        update = true;
+      }
+      return update;
+    }
+
+    @Override
+    public void onConfigurationChange() {
+      if (!mCleaningFlag.get()) {
+        initialize();
         return;
       }
-      if (currentMs - mLastMinorCleanTimeMs >= mMinorUnit * mCleanUnit) {
-        LOG.info("Start minor clean, targets are replicas over level: {}", mMinorReplicaThreshold);
-        cleanExcessReplica(mMinorReplicaThreshold);
-        mLastMinorCleanTimeMs = mClock.millis();
-        return;
-      }
+      mReconfiguration.set(true);
     }
 
     /**
