@@ -223,4 +223,9 @@ public interface FileSystemMasterClient extends Client {
    * @param options the options to update ufs operation mode
    */
   void updateUfsMode(AlluxioURI ufsUri, UpdateUfsModeOptions options) throws AlluxioStatusException;
+
+  /**
+   * Online reconfiguration request.
+   */
+  void reconfig() throws AlluxioStatusException;
 }

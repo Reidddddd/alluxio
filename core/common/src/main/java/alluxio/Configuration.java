@@ -98,6 +98,13 @@ public final class Configuration {
   }
 
   /**
+   * Reload configuration.
+   */
+  public static void reload() {
+    reset();
+  }
+
+  /**
    * Merges the current configuration properties with new properties. If a property exists
    * both in the new and current configuration, the one from the new configuration wins if
    * its priority is higher or equal than the existing one.

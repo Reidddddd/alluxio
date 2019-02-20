@@ -40,6 +40,7 @@ import alluxio.thrift.UnmountTOptions;
 import alluxio.wire.FileInfo;
 import alluxio.wire.MountPointInfo;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -230,5 +231,10 @@ public final class RetryHandlingFileSystemMasterClient extends AbstractMasterCli
       final UpdateUfsModeOptions options) throws AlluxioStatusException {
     retryRPC(() -> mClient.updateUfsMode(ufsUri.getRootPath(), options.toThrift()),
         "UpdateUfsMode");
+  }
+
+  @Override
+  public void reconfig() throws AlluxioStatusException {
+    retryRPC(() -> mClient.reconfig(), "Reconfig");
   }
 }

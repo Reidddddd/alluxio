@@ -13,6 +13,7 @@ package alluxio.master;
 
 import alluxio.AlluxioURI;
 import alluxio.Configuration;
+import alluxio.OnlineReconfigManager;
 import alluxio.PropertyKey;
 import alluxio.RuntimeConstants;
 import alluxio.master.journal.JournalSystem;
@@ -156,6 +157,9 @@ public class AlluxioMasterProcess implements MasterProcess {
       Configuration.set(PropertyKey.MASTER_RPC_PORT, Integer.toString(mPort));
       mRpcBindAddress = NetworkAddressUtils.getBindAddress(ServiceType.MASTER_RPC);
       mRpcConnectAddress = NetworkAddressUtils.getConnectAddress(ServiceType.MASTER_RPC);
+
+      // Initialize online reconfiguration manager
+      OnlineReconfigManager.getInstance();
 
       if (!mJournalSystem.isFormatted()) {
         throw new RuntimeException(

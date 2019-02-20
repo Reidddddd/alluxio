@@ -235,6 +235,8 @@ struct UpdateUfsModeTOptions {
 }
 struct UpdateUfsModeTResponse {}
 
+struct ReconfigTResponse {}
+
 /**
  * This interface contains file system master service endpoints for Alluxio clients.
  */
@@ -410,6 +412,13 @@ service FileSystemMasterClientService extends common.AlluxioService {
   UpdateUfsModeTResponse updateUfsMode(
     /** the ufs path */ 1: string ufsPath,
     /** the method options */ 2: UpdateUfsModeTOptions options,
+    )
+    throws (1: exception.AlluxioTException e)
+
+  /**
+   * Online reconfiguration request.
+   */
+  ReconfigTResponse reconfig(
     )
     throws (1: exception.AlluxioTException e)
 }

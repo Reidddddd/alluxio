@@ -14,6 +14,7 @@ package alluxio.master.file;
 import alluxio.AlluxioURI;
 import alluxio.Configuration;
 import alluxio.Constants;
+import alluxio.OnlineReconfigManager;
 import alluxio.PropertyKey;
 import alluxio.Server;
 import alluxio.clock.SystemClock;
@@ -3748,6 +3749,12 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
       updateUfsModeAndJournal(rpcContext, ufsPath, ufsMode);
       auditContext.setSucceeded(true);
     }
+  }
+
+  @Override
+  public void reconfig() {
+    Configuration.reload();
+    OnlineReconfigManager.getInstance().notifyAllObservers();
   }
 
   /**

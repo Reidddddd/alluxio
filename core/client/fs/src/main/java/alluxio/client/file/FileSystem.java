@@ -371,4 +371,12 @@ public interface FileSystem {
    * @param options options to associate with this operation
    */
   void unmount(AlluxioURI path, UnmountOptions options) throws IOException, AlluxioException;
+
+  /**
+   * Online reconfiguration request.
+   *
+   * @throws IOException
+   * @throws AlluxioException
+   */
+  void reconfig() throws IOException, AlluxioException;
 }

@@ -59,6 +59,7 @@ import alluxio.thrift.LoadMetadataTOptions;
 import alluxio.thrift.LoadMetadataTResponse;
 import alluxio.thrift.MountTOptions;
 import alluxio.thrift.MountTResponse;
+import alluxio.thrift.ReconfigTResponse;
 import alluxio.thrift.RenameTOptions;
 import alluxio.thrift.RenameTResponse;
 import alluxio.thrift.ScheduleAsyncPersistenceTOptions;
@@ -325,5 +326,13 @@ public final class FileSystemMasterClientServiceHandler implements
       mFileSystemMaster.updateUfsMode(new AlluxioURI(ufsPath), ufsMode);
       return new UpdateUfsModeTResponse();
     }, "UpdateUfsMode", "ufsPath=%s, options=%s", ufsPath, options);
+  }
+
+  @Override
+  public ReconfigTResponse reconfig() throws AlluxioTException {
+    return RpcUtils.call(LOG, (RpcCallableThrowsIOException<ReconfigTResponse>) () -> {
+      mFileSystemMaster.reconfig();
+      return new ReconfigTResponse();
+    }, "Reconfig", "reconfig");
   }
 }
