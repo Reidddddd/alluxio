@@ -179,6 +179,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       new IndexedSet<>(ID_INDEX, ADDRESS_INDEX);
   /** Keeps track of block replicas. */
   private final ReplicaManager mReplicaManager = new ReplicaManager();
+  /** Keeps track of serving hosts. */
+  private final HostManager mHostManager = new HostManager();
 
   /** Worker is not visualable until registration completes. */
   private final IndexedSet<MasterWorkerInfo> mTempWorkers =
@@ -773,6 +775,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
 
   @Override
   public long getWorkerId(WorkerNetAddress workerNetAddress) {
+    mHostManager.workerIsLegal(workerNetAddress.getHost());
+
     // TODO(gpang): Clone WorkerNetAddress in case thrift re-uses the object. Does thrift re-use it?
     MasterWorkerInfo existingWorker = mWorkers.getFirstByField(ADDRESS_INDEX, workerNetAddress);
     if (existingWorker != null) {
