@@ -12,6 +12,7 @@
 package alluxio;
 
 import alluxio.exception.ExceptionMessage;
+import alluxio.heartbeat.OffPeakTimer;
 import alluxio.util.OSUtils;
 import alluxio.util.io.PathUtils;
 import alluxio.wire.Scope;
@@ -980,6 +981,37 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
           .setScope(Scope.MASTER)
           .build();
+  public static final PropertyKey MASTER_BALANCER_BANDWIDTH_LIMIT =
+      new Builder(Name.MASTER_BALANCER_BANDWIDTH_LIMIT)
+          .setAlias(new String[] { Name.WORKER_BALANCER_BANDWIDTH_LIMIT })
+          .setDefaultValue("0MB")
+          .setDescription("Bandwidth limit for blocks transfer.")
+          .build();
+  public static final PropertyKey MASTER_BALANCER_INTERVAL =
+      new Builder(Name.MASTER_BALANCER_INTERVAL)
+          .setDefaultValue("30min")
+          .setDescription("Balancer running interval.")
+          .build();
+  public static final PropertyKey MASTER_BALANCER_START_TIME =
+      new Builder(Name.MASTER_BALANCER_START_TIME)
+          .setDefaultValue(22)
+          .setDefaultValue("Minutes in 60, from 0 to 59.")
+          .build();
+  public static final PropertyKey MASTER_BALANCER_STOP_TIME =
+      new Builder(Name.MASTER_BALANCER_STOP_TIME)
+          .setDefaultValue(0)
+          .setDefaultValue("Minutes in 60, from 0 to 59.")
+          .build();
+  public static final PropertyKey MASTER_BALANCER_THRESHOLD =
+      new Builder(Name.MASTER_BALANCER_THRESHOLD)
+          .setDefaultValue("500MB")
+          .setDescription("Threshold for balancer to decide whether to pick up a worker into balance's plan")
+          .build();
+  public static final PropertyKey MASTER_BALANCER_TIME_UNIT =
+      new Builder(Name.MASTER_BALANCER_TIME_UNIT)
+          .setDefaultValue(OffPeakTimer.OffPeakUnit.MINUTE)
+          .setDescription("Time unit of running timer. Support HOUR and MINUTE only")
+          .build();
   public static final PropertyKey MASTER_BACKUP_DIRECTORY =
       new Builder(Name.MASTER_BACKUP_DIRECTORY)
           .setDefaultValue("/alluxio_backups")
@@ -1515,6 +1547,12 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
           .setScope(Scope.WORKER)
           .build();
+  public static final PropertyKey WORKER_BALANCER_BANDWIDTH_LIMIT =
+      new Builder(Name.WORKER_BALANCER_BANDWIDTH_LIMIT)
+          .setAlias(new String[] { Name.MASTER_BALANCER_BANDWIDTH_LIMIT })
+          .setDefaultValue("0MB")
+          .setDescription("Bandwidth limit for blocks transfer.")
+          .build();
   public static final PropertyKey WORKER_BIND_HOST =
       new Builder(Name.WORKER_BIND_HOST)
           .setDefaultValue("0.0.0.0")
@@ -1560,6 +1598,11 @@ public final class PropertyKey implements Comparable<PropertyKey> {
               + "in Thrift thread pool with block worker.")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
           .setScope(Scope.WORKER)
+          .build();
+  public static final PropertyKey WORKER_BLOCK_TRANSFER_THREADS =
+      new Builder(Name.WORKER_BLOCK_TRANSFER_THREADS)
+          .setDefaultValue(8)
+          .setDescription("The number of threads used for transfering blocks between blocks")
           .build();
   public static final PropertyKey WORKER_DATA_BIND_HOST =
       new Builder(Name.WORKER_DATA_BIND_HOST)
@@ -3366,6 +3409,18 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.master.audit.logging.queue.capacity";
     public static final String MASTER_BACKUP_DIRECTORY =
         "alluxio.master.backup.directory";
+    public static final String MASTER_BALANCER_BANDWIDTH_LIMIT =
+        "alluxio.master.balancer.bandwidth.limit";
+    public static final String MASTER_BALANCER_INTERVAL =
+        "alluxio.master.balancer.interval";
+    public static final String MASTER_BALANCER_START_TIME =
+        "alluxio.master.balancer.start.time";
+    public static final String MASTER_BALANCER_STOP_TIME =
+        "alluxio.master.balancer.stop.time";
+    public static final String MASTER_BALANCER_THRESHOLD =
+        "alluxio.master.balancer.threshold";
+    public static final String MASTER_BALANCER_TIME_UNIT =
+        "alluxio.master.balancer.time.unit";
     public static final String MASTER_BIND_HOST = "alluxio.master.bind.host";
     public static final String MASTER_CLIENT_SOCKET_CLEANUP_INTERVAL =
         "alluxio.master.client.socket.cleanup.interval";
@@ -3482,6 +3537,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     // Worker related properties
     //
     public static final String WORKER_ALLOCATOR_CLASS = "alluxio.worker.allocator.class";
+    public static final String WORKER_BALANCER_BANDWIDTH_LIMIT =
+        "alluxio.worker.balancer.bandwidth.limit";
     public static final String WORKER_BIND_HOST = "alluxio.worker.bind.host";
     public static final String WORKER_BLOCK_HEARTBEAT_INTERVAL_MS =
         "alluxio.worker.block.heartbeat.interval";
@@ -3489,6 +3546,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.worker.block.heartbeat.timeout";
     public static final String WORKER_BLOCK_THREADS_MAX = "alluxio.worker.block.threads.max";
     public static final String WORKER_BLOCK_THREADS_MIN = "alluxio.worker.block.threads.min";
+    public static final String WORKER_BLOCK_TRANSFER_THREADS =
+        "alluxio.worker.block.transfer.threads";
     public static final String WORKER_DATA_BIND_HOST = "alluxio.worker.data.bind.host";
     public static final String WORKER_DATA_FOLDER = "alluxio.worker.data.folder";
     public static final String WORKER_DATA_FOLDER_PERMISSIONS =

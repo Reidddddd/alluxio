@@ -14,6 +14,7 @@ package alluxio.master;
 import alluxio.Constants;
 import alluxio.Server;
 import alluxio.exception.status.UnavailableException;
+import alluxio.heartbeat.OffPeakTimer;
 import alluxio.master.journal.Journal;
 import alluxio.master.journal.JournalContext;
 import alluxio.resource.LockResource;
@@ -55,6 +56,9 @@ public abstract class AbstractMaster implements Master {
   /** The clock to use for determining the time. */
   protected final Clock mClock;
 
+  /** Off-peak timer scheduler. */
+  private OffPeakTimer mTimer;
+
   /** The manager for safe mode state. */
   protected final SafeModeManager mSafeModeManager;
 
@@ -89,6 +93,7 @@ public abstract class AbstractMaster implements Master {
     mPauseStateLock = masterContext.pauseStateLock();
     mClock = clock;
     mExecutorServiceFactory = executorServiceFactory;
+    mTimer = new OffPeakTimer();
   }
 
   @Override
@@ -147,6 +152,13 @@ public abstract class AbstractMaster implements Master {
    */
   protected ExecutorService getExecutorService() {
     return mExecutorService;
+  }
+
+  /**
+   * @return the {@link OffPeakTimer} for this master
+   */
+  public OffPeakTimer getTimer() {
+    return mTimer;
   }
 
   @Override

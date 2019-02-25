@@ -29,6 +29,7 @@ public final class HeartbeatContext {
   public static final Class<? extends HeartbeatTimer> SLEEPING_TIMER_CLASS = SleepingTimer.class;
 
   // Names of different heartbeat executors.
+  public static final String MASTER_BLOCK_BALANCER = "Master Block Balancer";
   public static final String MASTER_BLOCK_INTEGRITY_CHECK = "Master Block Integrity Check";
   public static final String MASTER_CLUSTER_METRICS_UPDATER = "Master Cluster Metrics Updater";
   public static final String MASTER_CHECKPOINT_SCHEDULING = "Master Checkpoint Scheduling";
@@ -51,6 +52,7 @@ public final class HeartbeatContext {
 
   static {
     sTimerClasses = new HashMap<>();
+    sTimerClasses.put(MASTER_BLOCK_BALANCER, SLEEPING_TIMER_CLASS);
     sTimerClasses.put(MASTER_BLOCK_INTEGRITY_CHECK, SLEEPING_TIMER_CLASS);
     sTimerClasses.put(MASTER_CLUSTER_METRICS_UPDATER, SLEEPING_TIMER_CLASS);
     sTimerClasses.put(MASTER_CHECKPOINT_SCHEDULING, SLEEPING_TIMER_CLASS);

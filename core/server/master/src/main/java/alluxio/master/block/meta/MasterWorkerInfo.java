@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -70,6 +71,8 @@ public final class MasterWorkerInfo {
   private Set<Long> mBlocks;
   /** ids of blocks the worker should remove. */
   private Set<Long> mToRemoveBlocks;
+  /** ids of blocks in transfer. */
+  private Set<Long> mInTransferBlocks;
 
   /**
    * Creates a new instance of {@link MasterWorkerInfo}.
@@ -88,6 +91,7 @@ public final class MasterWorkerInfo {
     mUsedBytesOnTiers = new HashMap<>();
     mBlocks = new HashSet<>();
     mToRemoveBlocks = new HashSet<>();
+    mInTransferBlocks = ConcurrentHashMap.newKeySet();
   }
 
   /**
@@ -173,6 +177,7 @@ public final class MasterWorkerInfo {
   public void removeBlock(long blockId) {
     mBlocks.remove(blockId);
     mToRemoveBlocks.remove(blockId);
+    mInTransferBlocks.remove(blockId);
   }
 
   /**
@@ -253,6 +258,13 @@ public final class MasterWorkerInfo {
    */
   public long getCapacityBytes() {
     return mCapacityBytes;
+  }
+
+  /**
+   * @return ids of all blocks in transfer
+   */
+  public Set<Long> getBlocksInTransfer() {
+    return new HashSet<>(mInTransferBlocks);
   }
 
   /**
@@ -355,6 +367,9 @@ public final class MasterWorkerInfo {
       if (mBlocks.contains(blockId)) {
         mToRemoveBlocks.add(blockId);
       }
+      if (mInTransferBlocks.contains(blockId)) {
+        mInTransferBlocks.remove(blockId);
+      }
     } else {
       mToRemoveBlocks.remove(blockId);
     }
@@ -371,6 +386,14 @@ public final class MasterWorkerInfo {
     for (long t : mUsedBytesOnTiers.values()) {
       mUsedBytes += t;
     }
+  }
+
+  /**
+   * Add block in transfer blocks set.
+   * @param blockID block id
+   */
+  public void updateTransferBlock(long blockID) {
+    mInTransferBlocks.add(blockID);
   }
 
   /**

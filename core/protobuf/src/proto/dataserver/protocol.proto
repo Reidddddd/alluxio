@@ -27,6 +27,9 @@ message ReadRequest {
 
   // This is only set for UFS block read.
   optional OpenUfsBlockOptions open_ufs_block_options = 6;
+
+  // Whether the block should be deleted after reading
+  optional bool transfer = 8;
 }
 
 // Options for caching a block asynchronously

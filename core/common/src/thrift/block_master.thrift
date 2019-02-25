@@ -161,6 +161,11 @@ struct RegisterWorkerTOptions {
 
 struct RegisterWorkerTResponse {}
 
+struct GetWorkerNetAddressTOptions {}
+struct GetWorkerNetAddressTResponse {
+  1: common.WorkerNetAddress address
+}
+
 /**
  * This interface contains block master service endpoints for Alluxio workers.
  */
@@ -210,6 +215,14 @@ service BlockMasterWorkerService extends common.AlluxioService {
     /** the map of used bytes on each tier */  4: map<string, i64> usedBytesOnTiers,
     /** the map of list of blocks on each tier */  5: map<string, list<i64>> currentBlocksOnTiers,
     /** the method options */ 6: RegisterWorkerTOptions options,
+    )
+    throws (1: exception.AlluxioTException e)
+
+  /**
+   * Get worker net address
+   */
+  GetWorkerNetAddressTResponse getWorkerNetAddress(
+    /** the id of the source worker */  1: i64 workerId
     )
     throws (1: exception.AlluxioTException e)
 }

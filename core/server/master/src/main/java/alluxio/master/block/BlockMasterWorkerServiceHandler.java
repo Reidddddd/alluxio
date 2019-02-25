@@ -28,6 +28,7 @@ import alluxio.thrift.GetServiceVersionTOptions;
 import alluxio.thrift.GetServiceVersionTResponse;
 import alluxio.thrift.GetWorkerIdTOptions;
 import alluxio.thrift.GetWorkerIdTResponse;
+import alluxio.thrift.GetWorkerNetAddressTResponse;
 import alluxio.thrift.RegisterWorkerTOptions;
 import alluxio.thrift.RegisterWorkerTResponse;
 import alluxio.thrift.WorkerNetAddress;
@@ -116,5 +117,13 @@ public final class BlockMasterWorkerServiceHandler implements BlockMasterWorkerS
     }, "RegisterWorker", "workerId=%s, storageTiers=%s, totalBytesOnTiers=%s, "
         + "usedBytesOnTiers=%s, currentBlocksOnTiers=%s, options=%s", workerId, storageTiers,
         totalBytesOnTiers, usedBytesOnTiers, currentBlocksOnTiers, options);
+  }
+
+  @Override
+  public GetWorkerNetAddressTResponse getWorkerNetAddress(long workerId)
+      throws AlluxioTException {
+    return RpcUtils.call(LOG, (RpcCallableThrowsIOException<GetWorkerNetAddressTResponse>) () ->
+      new GetWorkerNetAddressTResponse(mBlockMaster.getWorkerNetAddress(workerId).toThrift()),
+      "GetWorkerNetAddress", "workerId=%s", workerId);
   }
 }

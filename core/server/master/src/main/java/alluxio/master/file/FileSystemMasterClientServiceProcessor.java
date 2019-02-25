@@ -72,7 +72,7 @@ public class FileSystemMasterClientServiceProcessor
       String ip = ((TSocket) transport).getSocket().getInetAddress().toString();
       sClientIpThreadLocal.set(ip);
     } else {
-      LOG.warn("Failed to obtain client IP: underlying transport is not TSocket but {}", transport);
+      LOG.debug("Failed to obtain client IP: underlying transport is not TSocket but {}", transport);
       sClientIpThreadLocal.set(null);
     }
     return super.process(in, out);

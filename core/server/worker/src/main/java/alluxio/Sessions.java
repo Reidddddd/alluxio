@@ -38,6 +38,7 @@ public final class Sessions {
   public static final int ACCESS_BLOCK_SESSION_ID = -5;
   public static final int KEYVALUE_SESSION_ID = -6;
   public static final int ASYNC_CACHE_SESSION_ID = -7;
+  public static final int TRANSFER_BLOCK_SESSION_ID = -8;
 
   // internal session id base should be smaller than all predefined session ids
   public static final long INTERNAL_SESSION_ID_BASE = -8;

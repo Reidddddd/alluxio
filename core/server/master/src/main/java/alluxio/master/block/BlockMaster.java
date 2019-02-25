@@ -221,4 +221,11 @@ public interface BlockMaster extends Master, ContainerIdGenerable {
    * @param function the function to register
    */
   void registerNewWorkerConfListener(BiConsumer<Address, List<ConfigProperty>> function);
+
+  /**
+   * Given worker id, return worker's net address.
+   * @param workerID worker id
+   * @return worker's net address
+   */
+  WorkerNetAddress getWorkerNetAddress(long workerID);
 }

@@ -59,7 +59,7 @@ public class ChannelPoolMapImpl extends AbstractChannelPoolMap<SocketAddress, Fi
 
   @Override
   protected FixedChannelPool newPool(SocketAddress address) {
-    LOG.info("New pool to address {}.", address.toString());
+    LOG.info("New channel pool to address {}.", address.toString());
     return new FixedChannelPool(map.get(address), new ChannelHandler(), mPoolSizeOfAddr);
   }
 
@@ -77,7 +77,7 @@ public class ChannelPoolMapImpl extends AbstractChannelPoolMap<SocketAddress, Fi
       service.scheduleAtFixedRate(new Runnable() {
         @Override
         public void run() {
-          LOG.info("Start checking idle channel!");
+          LOG.debug("Start checking idle channel!");
           long currentTime = System.currentTimeMillis();
           Iterator<Map.Entry<Channel, Long>> it = idleChannels.entrySet().iterator();
           while (it.hasNext()) {
@@ -96,13 +96,13 @@ public class ChannelPoolMapImpl extends AbstractChannelPoolMap<SocketAddress, Fi
 
     @Override
     public void channelReleased(Channel channel) {
-      LOG.info("Channel {} is released.", channel);
+      LOG.debug("Channel {} is released.", channel);
       idleChannels.put(channel, System.currentTimeMillis());
     }
 
     @Override
     public void channelAcquired(Channel channel) {
-      LOG.info("Channel {} is acquired.", channel);
+      LOG.debug("Channel {} is acquired.", channel);
       idleChannels.remove(channel);
     }
 
@@ -115,7 +115,7 @@ public class ChannelPoolMapImpl extends AbstractChannelPoolMap<SocketAddress, Fi
       pipeline.addLast(NettyClient.DECODER);
       pipeline.addLast(new IdleStateHandler(0, heartbeatPeriodMs, 0, TimeUnit.MILLISECONDS));
       pipeline.addLast(new IdleWriteHandler());
-      LOG.info("Channel {} is created.", channel);
+      LOG.debug("Channel {} is created.", channel);
     }
   }
 }

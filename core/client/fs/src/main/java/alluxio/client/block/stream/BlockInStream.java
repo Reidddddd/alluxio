@@ -201,6 +201,28 @@ public class BlockInStream extends InputStream implements BoundedStream, Seekabl
   }
 
   /**
+   * Creates a {@link BlockInStream} to read from a specific peer server. Should only be used
+   * in balancer.
+   *
+   * @param context the file system context
+   * @param blockId the block id
+   * @param address the address of the netty data server
+   * @param blockSource the source location of the block
+   * @param blockSize the size of the block
+   * @return the {@link BlockInStream} created
+   */
+  public static BlockInStream createPeerBlockInStream(FileSystemContext context, long blockId,
+    WorkerNetAddress address, BlockInStreamSource blockSource, long blockSize) {
+    long packetSize =
+      Configuration.getBytes(PropertyKey.USER_NETWORK_NETTY_READER_PACKET_SIZE_BYTES);
+    Protocol.ReadRequest readRequest = Protocol.ReadRequest.newBuilder().setBlockId(blockId)
+      .setTransfer(true).setPacketSize(packetSize).buildPartial();
+    PacketReader.Factory factory = new NettyPacketReader.Factory(context, address,
+      readRequest.toBuilder().buildPartial());
+    return new BlockInStream(factory, address, blockSource, blockId, blockSize);
+  }
+
+  /**
    * Creates an instance of {@link BlockInStream}.
    *
    * @param packetReaderFactory the packet reader factory

@@ -156,4 +156,26 @@ public final class BlockMasterClient extends AbstractMasterClient {
       return null;
     });
   }
+
+  /**
+   * Get the worker's WorkerNetAddress given worker's id.
+   * @param workerID worker id
+   * @return worker's WorkerNetAddress
+   */
+  public synchronized WorkerNetAddress getWorkerNetAddress(final long workerID)
+      throws IOException {
+    return retryRPC(new RpcCallable<WorkerNetAddress>() {
+      @Override
+      public WorkerNetAddress call() throws TException {
+        alluxio.thrift.WorkerNetAddress add = mClient.getWorkerNetAddress(workerID).getAddress();
+        WorkerNetAddress address = new WorkerNetAddress();
+        address.setDataPort(add.getDataPort())
+               .setDomainSocketPath(add.getDomainSocketPath())
+               .setHost(add.getHost())
+               .setRpcPort(add.getRpcPort())
+               .setWebPort(add.getWebPort());
+        return address;
+      }
+    });
+  }
 }

@@ -33,6 +33,8 @@ import alluxio.exception.status.UnavailableException;
 import alluxio.heartbeat.HeartbeatContext;
 import alluxio.heartbeat.HeartbeatExecutor;
 import alluxio.heartbeat.HeartbeatThread;
+import alluxio.heartbeat.OffPeakTimer;
+import alluxio.heartbeat.TimerExecutor;
 import alluxio.master.AbstractMaster;
 import alluxio.master.MasterContext;
 import alluxio.master.block.meta.MasterBlockInfo;
@@ -88,6 +90,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -181,6 +184,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
   private final ReplicaManager mReplicaManager = new ReplicaManager();
   /** Keeps track of serving hosts. */
   private final HostManager mHostManager = new HostManager();
+  /** Balance blocks among workers. */
+  private final BlockBalancer mBlockBalancer = new BlockBalancer(mBlocks);
 
   /** Worker is not visualable until registration completes. */
   private final IndexedSet<MasterWorkerInfo> mTempWorkers =
@@ -219,7 +224,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
    */
   DefaultBlockMaster(MetricsMaster metricsMaster, MasterContext masterContext) {
     this(metricsMaster, masterContext, new SystemClock(), ExecutorServiceFactories
-        .fixedThreadPoolExecutorServiceFactory(Constants.BLOCK_MASTER_NAME, 2));
+        .fixedThreadPoolExecutorServiceFactory(Constants.BLOCK_MASTER_NAME, 3));
   }
 
   /**
@@ -326,6 +331,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       getExecutorService().submit(new HeartbeatThread(
         HeartbeatContext.MASTER_REPLICA_CLEANER, new ReplicaCleanerHeartbeatExecutor(),
         Configuration.getMs(PropertyKey.MASTER_REPLICA_CLEANER_INTERVAL_MS)));
+      getTimer().trigger(new BlockBalancerExecutor());
     }
   }
 
@@ -869,6 +875,13 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       worker.updateUsedBytes(usedBytesOnTiers);
       worker.updateLastUpdatedTimeMs();
 
+      List<Long> toTransferBlocks = mBlockBalancer.getBlocksForTransfer(worker);
+      if (!toTransferBlocks.isEmpty()) {
+        LOG.info("{} will accept {} blocks from other workers.",
+          worker.getWorkerAddress().getHost(),
+          toTransferBlocks.size());
+        return new Command(CommandType.Transfer, toTransferBlocks);
+      }
       List<Long> toRemoveBlocks = worker.getToRemoveBlocks();
       if (toRemoveBlocks.isEmpty()) {
         return new Command(CommandType.Nothing, new ArrayList<Long>());
@@ -1024,6 +1037,12 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
   @Override
   public Set<Class<? extends Server>> getDependencies() {
     return DEPS;
+  }
+
+  @Override
+  public WorkerNetAddress getWorkerNetAddress(long workerID) {
+    MasterWorkerInfo workerInfo = mWorkers.getFirstByField(ID_INDEX, workerID);
+    return workerInfo.getWorkerAddress();
   }
 
   /**
@@ -1220,6 +1239,145 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
     @Override
     public String toString() {
       return "ReplicaCleanerHeartbeatExecutor";
+    }
+  }
+
+  private final class BlockBalancerExecutor extends TimerExecutor implements HeartbeatExecutor,
+    OnlineReconfigObserver {
+
+    /** a size of acceptable difference. */
+    private volatile long deltaSize;
+    /** Bandwidth limit per worker. */
+    private long bandwidthLimit;
+    private volatile boolean executionFlag;
+    private boolean startedFlag;
+
+    private final Comparator<Long> ascend =
+      new Comparator<Long>() {
+        @Override
+        public int compare(Long l, Long r) {
+          return (int) (mWorkers.getFirstByField(ID_INDEX, l).getUsedBytes() -
+            mWorkers.getFirstByField(ID_INDEX, r).getUsedBytes());
+        }
+      };
+
+    private final Comparator<Long> descend =
+      new Comparator<Long>() {
+        @Override
+        public int compare(Long l, Long r) {
+          return (int) (mWorkers.getFirstByField(ID_INDEX, r).getUsedBytes() -
+            mWorkers.getFirstByField(ID_INDEX, l).getUsedBytes());
+        }
+      };
+
+    BlockBalancerExecutor() {
+      super(
+        Configuration.getEnum(PropertyKey.MASTER_BALANCER_TIME_UNIT, OffPeakTimer.OffPeakUnit.class),
+        Configuration.getInt(PropertyKey.MASTER_BALANCER_START_TIME),
+        Configuration.getInt(PropertyKey.MASTER_BALANCER_STOP_TIME)
+      );
+      deltaSize = Configuration.getBytes(PropertyKey.MASTER_BALANCER_THRESHOLD);
+      bandwidthLimit = Configuration.getBytes(PropertyKey.MASTER_BALANCER_BANDWIDTH_LIMIT);
+      startedFlag = false;
+      executionFlag = false;
+      OnlineReconfigManager.getInstance().registerObserver(this);
+    }
+
+    @Override
+    public void heartbeat() {
+      if (executionFlag) {
+        LOG.info("Running {}", toString());
+        // a. snapshot
+        Map<Long, Long> usedBytes = new HashMap<>();
+        for (MasterWorkerInfo worker : mWorkers) {
+          usedBytes.put(worker.getId(), worker.getUsedBytes());
+        }
+        // b. calculate average
+        long avgUsed = (long) usedBytes.values().stream()
+          .mapToLong(Long::longValue).average()
+          .orElseGet(() -> -1);
+        if (avgUsed <= 0) {
+          return;
+        }
+        LOG.info("Cluster average load is {} bytes.", avgUsed);
+        mBlockBalancer.setCurrentRoundAvg(avgUsed);
+        // c. divide into two heaps
+        Map<Long, Long> belowAvgHeap = new TreeMap<>(ascend);
+        Map<Long, Long> aboveAvgHeap = new TreeMap<>(descend);
+        for (Map.Entry<Long, Long> perWorkerUsed : usedBytes.entrySet()) {
+          if (perWorkerUsed.getValue() > avgUsed + deltaSize) {
+            aboveAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
+          } else if (perWorkerUsed.getValue() < avgUsed - deltaSize) {
+            belowAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
+          }
+        }
+        LOG.info("Number of workers below average {}.", belowAvgHeap.size());
+        LOG.info("Number of workers above average {}.", aboveAvgHeap.size());
+        mBlockBalancer.setReceiver(belowAvgHeap.keySet());
+        // d. create plan for sender
+        for (Map.Entry<Long, Long> sources : aboveAvgHeap.entrySet()) {
+          MasterWorkerInfo sender = mWorkers.getFirstByField(ID_INDEX, sources.getKey());
+          long approximateSize = sources.getValue() - avgUsed;
+          mBlockBalancer.generateTransferPlan(sender, approximateSize);
+        }
+      }
+    }
+
+    @Override
+    protected void start() {
+      if (!startedFlag) {
+        LOG.info("Submitting {}", toString());
+        getExecutorService().submit(new HeartbeatThread(
+          HeartbeatContext.MASTER_BLOCK_BALANCER, BlockBalancerExecutor.this,
+          Configuration.getMs(PropertyKey.MASTER_BALANCER_INTERVAL)));
+        startedFlag = true;
+      }
+      if (!executionFlag) {
+        LOG.info("Starting {}", toString());
+        executionFlag = true;
+      }
+    }
+
+    @Override
+    protected void stop() {
+      LOG.info("Stopping {}", toString());
+      executionFlag = false;
+    }
+
+    @Override
+    public void close() {
+    }
+
+    @Override
+    public boolean needUpdate() {
+      boolean update = false;
+      if (deltaSize != Configuration.getBytes(PropertyKey.MASTER_BALANCER_THRESHOLD)) {
+        LOG.info("Updating {} from {} to {}.",
+          PropertyKey.MASTER_BALANCER_THRESHOLD,
+          deltaSize,
+          Configuration.getBytes(PropertyKey.MASTER_BALANCER_THRESHOLD));
+        update = true;
+      }
+      if (bandwidthLimit != Configuration.getBytes(PropertyKey.MASTER_BALANCER_BANDWIDTH_LIMIT)) {
+        LOG.info("Updating {} from {} to {}.",
+          PropertyKey.MASTER_BALANCER_BANDWIDTH_LIMIT,
+          bandwidthLimit,
+          Configuration.getBytes(PropertyKey.MASTER_BALANCER_BANDWIDTH_LIMIT));
+        update = true;
+      }
+      return update;
+    }
+
+    @Override
+    public void onConfigurationChange() {
+      deltaSize = Configuration.getBytes(PropertyKey.MASTER_BALANCER_THRESHOLD);
+      bandwidthLimit = Configuration.getBytes(PropertyKey.MASTER_BALANCER_BANDWIDTH_LIMIT);
+      mBlockBalancer.setBandwidth(bandwidthLimit);
+    }
+
+    @Override
+    public String toString() {
+      return "BlockBalancerExecutor";
     }
   }
 

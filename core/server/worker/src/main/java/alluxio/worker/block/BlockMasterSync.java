@@ -71,6 +71,9 @@ public final class BlockMasterSync implements HeartbeatExecutor {
   /** An async service to remove block. */
   private final AsyncBlockRemover mAsyncBlockRemover;
 
+  /** An service to transfer blocks. */
+  private final BlockTransferService mBlockTransferService;
+
   /** Last System.currentTimeMillis() timestamp when a heartbeat successfully completed. */
   private long mLastSuccessfulHeartbeatMs;
 
@@ -90,6 +93,7 @@ public final class BlockMasterSync implements HeartbeatExecutor {
     mMasterClient = masterClient;
     mHeartbeatTimeoutMs = (int) Configuration.getMs(PropertyKey.WORKER_BLOCK_HEARTBEAT_TIMEOUT_MS);
     mAsyncBlockRemover = new AsyncBlockRemover(mBlockWorker);
+    mBlockTransferService = new BlockTransferService(mBlockWorker, mMasterClient);
 
     registerWithMaster();
     mLastSuccessfulHeartbeatMs = System.currentTimeMillis();
@@ -176,7 +180,11 @@ public final class BlockMasterSync implements HeartbeatExecutor {
       case Free:
         mAsyncBlockRemover.addBlocksToDelete(cmd.getData());
         break;
-      // No action required
+      case Transfer:
+        LOG.debug("Received transfer request {}", cmd.getData());
+        mBlockTransferService.transferBlocksToLocal(cmd.getData());
+        break;
+    // No action required
       case Nothing:
         break;
       // Master requests re-registration
