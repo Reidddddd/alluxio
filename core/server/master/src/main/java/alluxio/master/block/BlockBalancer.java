@@ -11,6 +11,7 @@
 
 package alluxio.master.block;
 
+import alluxio.Constants;
 import alluxio.master.block.meta.MasterBlockInfo;
 import alluxio.master.block.meta.MasterWorkerInfo;
 import com.google.common.collect.Sets;
@@ -59,12 +60,22 @@ public class BlockBalancer {
   }
 
   /**
+   * Every run after balance status check, we should update the receiving workers lists.
+   * For some of them may achieve average status in previous round.
+   * @param keySet a set of worker id
+   */
+  public void setReceiver(Set<Long> keySet) {
+    mReceivers.clear();
+    mReceivers.addAll(keySet);
+  }
+
+  /**
    * Get a list of blocks info [blockId, blockSize, workerId]. Worker with this will know where to read
    * blocks.
    * @param worker worker info
    * @return a list of blocks if this worker is supposed to receive blocks, empty list otherwise.
    */
-  public List<Long> getBlocksForTransfer(MasterWorkerInfo worker) {
+  public List<Long> getBlocksForTransfer(DefaultBlockMaster master, MasterWorkerInfo worker) {
     if (!mReceivers.contains(worker.getId())) {
       return Collections.emptyList();
     }
@@ -93,18 +104,29 @@ public class BlockBalancer {
         Map.Entry<Long, Long> bit = it.next();
         long blockID = bit.getKey();
         long blockSize = bit.getValue();
-        if (mBlock.get(blockID).getBlockLocations().contains(worker)) {
+        MasterBlockInfo block = mBlock.get(blockID);
+        if (block == null) {
+          it.remove();
+          continue;
+        }
+        if (block.getBlockLocations().contains(worker)) {
           // if this worker already contains this block,
           // we should avoid all replicas in one worker, just skip.
           continue;
         }
+        MasterWorkerInfo sourceWorker = master.getWorker(sourceID);
+        if (sourceWorker.getBlocksToBeRemoved().contains(blockID)) {
+          it.remove();
+          continue;
+        }
         received += blockSize;
         // List in format [blockID, blockSize, workerID]
+        sourceWorker.updateTransferBlock(blockID, MasterWorkerInfo.Transfer.SENDING);
         blocksInTransfer.addLast(blockID);
         blocksInTransfer.addLast(blockSize);
         blocksInTransfer.addLast(sourceID);
         it.remove();
-        worker.updateTransferBlock(blockID);
+        worker.updateTransferBlock(blockID, MasterWorkerInfo.Transfer.RECEIVING);
         if (received >= receivable) {
           if (!source.planEmpty()) {
             synchronized (mPlans) {
@@ -116,16 +138,6 @@ public class BlockBalancer {
       }
     }
     return blocksInTransfer;
-  }
-
-  /**
-   * Every run after balance status check, we should update the receiving workers lists.
-   * For some of them may achieve average status in previous round.
-   * @param keySet a set of worker id
-   */
-  public void setReceiver(Set<Long> keySet) {
-    mReceivers.clear();
-    mReceivers.addAll(keySet);
   }
 
   /**
@@ -145,17 +157,23 @@ public class BlockBalancer {
     SourcePlan sp = new SourcePlan(sender.getId());
     long sizeOfPlan = 0L;
     // Already in transfer blocks and to be removed blocks should be excluded.
-    Set<Long> blocksCanBeSent = Sets.difference(
-      Sets.difference(sender.getBlocks(), Sets.newHashSet(sender.getToRemoveBlocks())),
-      sender.getBlocksInTransfer());
+    Set<Long> blocksCanBeSent = Sets.difference(sender.getBlocks(), sender.getBlocksToBeRemoved());
     for (long bid : blocksCanBeSent) {
-      long size = mBlock.get(bid).getLength();
+      MasterBlockInfo block = mBlock.get(bid);
+      if (block == null) {
+        continue;
+      }
+      long size = block.getLength();
       sp.addBlockInfo(bid, size);
       sizeOfPlan += size;
       if (sizeOfPlan >= approximateSize) {
         break;
       }
     }
+    LOG.info("Plan to transfer {} blocks with size {}MB from {}",
+      blocksCanBeSent.size(),
+      (sizeOfPlan / Constants.MB),
+      sender.getWorkerAddress().getHost());
 
     synchronized (mPlans) {
       mPlans.add(sp);
@@ -172,7 +190,7 @@ public class BlockBalancer {
 
   private final SourcePlan EMPTY = new SourcePlan(-1);
 
-  private class SourcePlan {
+  class SourcePlan {
     /** Source worker id. */
     long workerID;
     /** A map of block id to block size. */

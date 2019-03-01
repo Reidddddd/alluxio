@@ -126,12 +126,15 @@ public class ReplicaManager {
    */
   public Set<Long> fetchBlocksAboveLevel(int level) {
     // Remove invalid blocks before fetching.
-    for (long invalidBlock : mInvalidReplicas) {
+    Iterator<Long> invalidIter = mInvalidReplicas.iterator();
+    while (invalidIter.hasNext()) {
+      long invalidBlock = invalidIter.next();
       for (int l : getReplicaLevels()) {
         if (contains(l, invalidBlock)) {
           evictBlockFrom(l, invalidBlock);
         }
       }
+      invalidIter.remove();
     }
 
     // Fetch all blocks >= level

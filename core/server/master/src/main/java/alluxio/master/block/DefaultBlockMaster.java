@@ -86,6 +86,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -478,6 +479,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
             // Otherwise blockId in mLostBlock can be dangling index if the metadata is gone.
             mLostBlocks.remove(blockId);
             if (mBlocks.remove(blockId) != null) {
+              mReplicaManager.removeInvalidBlock(blockId);
               JournalEntry entry = JournalEntry.newBuilder()
                   .setDeleteBlock(DeleteBlockEntry.newBuilder().setBlockId(blockId)).build();
               journalContext.append(entry);
@@ -875,7 +877,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       worker.updateUsedBytes(usedBytesOnTiers);
       worker.updateLastUpdatedTimeMs();
 
-      List<Long> toTransferBlocks = mBlockBalancer.getBlocksForTransfer(worker);
+      List<Long> toTransferBlocks = mBlockBalancer.getBlocksForTransfer(this, worker);
+        //getBlocksForTransfer(mBlockBalancer, worker);
       if (!toTransferBlocks.isEmpty()) {
         LOG.info("{} will accept {} blocks from other workers.",
           worker.getWorkerAddress().getHost(),
@@ -885,6 +888,10 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       List<Long> toRemoveBlocks = worker.getToRemoveBlocks();
       if (toRemoveBlocks.isEmpty()) {
         return new Command(CommandType.Nothing, new ArrayList<Long>());
+      }
+      Set<Long> sendingBlocks = worker.getBlocksInTransfer(MasterWorkerInfo.Transfer.SENDING);
+      for (long id : sendingBlocks) {
+        toRemoveBlocks.remove(id);
       }
       return new Command(CommandType.Free, toRemoveBlocks);
     }
@@ -907,9 +914,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
   private void processWorkerRemovedBlocks(MasterWorkerInfo workerInfo,
       Collection<Long> removedBlockIds) {
     if (!removedBlockIds.isEmpty()) {
-      LOG.info("{} blocks, {}MB are removed from {}.",
+      LOG.info("{} blocks are removed from {}.",
         removedBlockIds.size(),
-        readableMegaBytes(removedBlockIds),
         workerInfo.getWorkerAddress().getHost());
     }
     for (long removedBlockId : removedBlockIds) {
@@ -937,13 +943,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
     }
   }
 
-  private static final long MB = 1048576;
-  private long readableMegaBytes(Collection<Long> blocks) {
-    long bytes = 0L;
-    for (long block : blocks) {
-      bytes += mBlocks.get(block).getLength();
-    }
-    return bytes / MB;
+  public MasterWorkerInfo getWorker(long workerID) {
+    return mWorkers.getFirstByField(ID_INDEX, workerID);
   }
 
   /**
@@ -1250,7 +1251,6 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
     /** Bandwidth limit per worker. */
     private long bandwidthLimit;
     private volatile boolean executionFlag;
-    private boolean startedFlag;
 
     private final Comparator<Long> ascend =
       new Comparator<Long>() {
@@ -1276,9 +1276,11 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         Configuration.getInt(PropertyKey.MASTER_BALANCER_START_TIME),
         Configuration.getInt(PropertyKey.MASTER_BALANCER_STOP_TIME)
       );
+      getExecutorService().submit(new HeartbeatThread(
+        HeartbeatContext.MASTER_BLOCK_BALANCER, BlockBalancerExecutor.this,
+        Configuration.getMs(PropertyKey.MASTER_BALANCER_INTERVAL)));
       deltaSize = Configuration.getBytes(PropertyKey.MASTER_BALANCER_THRESHOLD);
       bandwidthLimit = Configuration.getBytes(PropertyKey.MASTER_BALANCER_BANDWIDTH_LIMIT);
-      startedFlag = false;
       executionFlag = false;
       OnlineReconfigManager.getInstance().registerObserver(this);
     }
@@ -1299,7 +1301,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         if (avgUsed <= 0) {
           return;
         }
-        LOG.info("Cluster average load is {} bytes.", avgUsed);
+        LOG.info("Cluster average load is {}MB.", (avgUsed) / Constants.MB);
         mBlockBalancer.setCurrentRoundAvg(avgUsed);
         // c. divide into two heaps
         Map<Long, Long> belowAvgHeap = new TreeMap<>(ascend);
@@ -1325,13 +1327,6 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
 
     @Override
     protected void start() {
-      if (!startedFlag) {
-        LOG.info("Submitting {}", toString());
-        getExecutorService().submit(new HeartbeatThread(
-          HeartbeatContext.MASTER_BLOCK_BALANCER, BlockBalancerExecutor.this,
-          Configuration.getMs(PropertyKey.MASTER_BALANCER_INTERVAL)));
-        startedFlag = true;
-      }
       if (!executionFlag) {
         LOG.info("Starting {}", toString());
         executionFlag = true;

@@ -71,16 +71,17 @@ final class InodeTtlChecker implements HeartbeatExecutor {
         if (path != null) {
           try {
             TtlAction ttlAction = inode.getTtlAction();
-            LOG.debug("Path {} TTL has expired, performing action {}", path.getPath(), ttlAction);
+            LOG.info("Path {} TTL has expired, performing action {}", path.getPath(), ttlAction);
             switch (ttlAction) {
               case FREE:
                 // public free method will lock the path, and check WRITE permission required at
                 // parent of file
                 if (inode.isDirectory()) {
-                  mFileSystemMaster
-                      .free(path, FreeOptions.defaults().setForced(true).setRecursive(true));
+                  mFileSystemMaster.free(path,
+                    FreeOptions.defaults().setForced(true).setRecursive(true));
                 } else {
-                  mFileSystemMaster.free(path, FreeOptions.defaults().setForced(true));
+                  mFileSystemMaster.free(path,
+                    FreeOptions.defaults().setForced(true).setRecursive(false));
                 }
                 // Reset state
                 inode.setTtl(Constants.NO_TTL);

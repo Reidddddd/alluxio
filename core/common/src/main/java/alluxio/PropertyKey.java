@@ -1425,6 +1425,12 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
           .setScope(Scope.MASTER)
           .build();
+  public static final PropertyKey MASTER_TTL_MANAGER_TIME_TO_LIVE =
+      new Builder(Name.MASTER_TTL_MANAGER_TIME_TO_LIVE)
+          .setDefaultValue(Constants.NO_TTL)
+          .setDescription("Time to live for loaded in files and directories.")
+          .setScope(Scope.MASTER)
+          .build();
   public static final PropertyKey MASTER_UFS_BLOCK_LOCATION_CACHE_CAPACITY =
       new Builder(Name.MASTER_UFS_BLOCK_LOCATION_CACHE_CAPACITY)
           .setDefaultValue(1000000)
@@ -3510,6 +3516,8 @@ public final class PropertyKey implements Comparable<PropertyKey> {
         "alluxio.master.tieredstore.global.levels";
     public static final String MASTER_TTL_CHECKER_INTERVAL_MS =
         "alluxio.master.ttl.checker.interval";
+    public static final String MASTER_TTL_MANAGER_TIME_TO_LIVE =
+        "alluxio.master.ttl.manager.time.to.live";
     public static final String MASTER_UFS_BLOCK_LOCATION_CACHE_CAPACITY =
         "alluxio.master.ufs.block.location.cache.capacity";
     public static final String MASTER_UFS_PATH_CACHE_CAPACITY =

@@ -164,7 +164,7 @@ public class BlockTransferService {
             LOG.info("Bandwidth excess {}, waiting.", mBandwidthLimit);
           }
           block = mRemoteBlocks.take();
-          LOG.info("Reading block {} from {}", block.ID, block.size);
+          LOG.info("Reading block {} from {}", block.ID, block.source.getHostName());
           currentBytes.addAndGet(block.size);
           mBlockWorker.createBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID, "MEM", block.size);
           try (PeerBlockReader reader = new PeerBlockReader(block.ID, block.size, block.source)) {

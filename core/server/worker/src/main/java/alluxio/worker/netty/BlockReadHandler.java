@@ -108,7 +108,7 @@ public final class BlockReadHandler extends AbstractReadHandler<BlockReadRequest
             mWorker.removeBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, context.getRequest().getId());
             LOG.info("Transferred and deleted block {}.", context.getRequest().getId());
           } catch (Exception e) {
-            LOG.warn("Thread {} failed to delete block {} with reason.",
+            LOG.warn("Thread {} failed to delete block {} with reason {}.",
               Thread.currentThread().getName(),
               context.getRequest().getId(),
               e.getMessage());
@@ -167,7 +167,7 @@ public final class BlockReadHandler extends AbstractReadHandler<BlockReadRequest
       RetryPolicy retryPolicy = new TimeoutRetry(UFS_BLOCK_OPEN_TIMEOUT_MS, retryInterval);
       while (retryPolicy.attempt()) {
         long lockId;
-        if (request.isPersisted()) {
+        if (request.isPersisted() || request.isTransfer()) {
           lockId = mWorker.lockBlockNoException(request.getSessionId(), request.getId());
         } else {
           lockId = mWorker.lockBlock(request.getSessionId(), request.getId());

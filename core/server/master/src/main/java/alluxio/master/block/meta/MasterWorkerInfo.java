@@ -1,3 +1,4 @@
+
 /*
  * The Alluxio Open Foundation licenses this work under the Apache License, version 2.0
  * (the "License"). You may not use this work except in compliance with the License, which is
@@ -72,7 +73,13 @@ public final class MasterWorkerInfo {
   /** ids of blocks the worker should remove. */
   private Set<Long> mToRemoveBlocks;
   /** ids of blocks in transfer. */
-  private Set<Long> mInTransferBlocks;
+  private Set<Long> mReceivingBlocks;
+  /** ids of blocks in pending. */
+  private Set<Long> mSendingBlocks;
+
+  public enum Transfer {
+    SENDING, RECEIVING
+  }
 
   /**
    * Creates a new instance of {@link MasterWorkerInfo}.
@@ -90,8 +97,9 @@ public final class MasterWorkerInfo {
     mTotalBytesOnTiers = new HashMap<>();
     mUsedBytesOnTiers = new HashMap<>();
     mBlocks = new HashSet<>();
-    mToRemoveBlocks = new HashSet<>();
-    mInTransferBlocks = ConcurrentHashMap.newKeySet();
+    mToRemoveBlocks = ConcurrentHashMap.newKeySet();
+    mReceivingBlocks = ConcurrentHashMap.newKeySet();
+    mSendingBlocks = ConcurrentHashMap.newKeySet();
   }
 
   /**
@@ -167,6 +175,7 @@ public final class MasterWorkerInfo {
    */
   public void addBlock(long blockId) {
     mBlocks.add(blockId);
+    mReceivingBlocks.remove(blockId);
   }
 
   /**
@@ -177,7 +186,7 @@ public final class MasterWorkerInfo {
   public void removeBlock(long blockId) {
     mBlocks.remove(blockId);
     mToRemoveBlocks.remove(blockId);
-    mInTransferBlocks.remove(blockId);
+    mSendingBlocks.remove(blockId);
   }
 
   /**
@@ -263,8 +272,10 @@ public final class MasterWorkerInfo {
   /**
    * @return ids of all blocks in transfer
    */
-  public Set<Long> getBlocksInTransfer() {
-    return new HashSet<>(mInTransferBlocks);
+  public Set<Long> getBlocksInTransfer(Transfer transfer) {
+    return transfer == Transfer.RECEIVING ?
+      new HashSet<>(mReceivingBlocks) :
+      new HashSet<>(mSendingBlocks);
   }
 
   /**
@@ -286,6 +297,13 @@ public final class MasterWorkerInfo {
    */
   public List<Long> getToRemoveBlocks() {
     return new ArrayList<>(mToRemoveBlocks);
+  }
+
+  /**
+   * @return ids of blocks to be removed
+   */
+  public Set<Long> getBlocksToBeRemoved() {
+    return new HashSet<>(mToRemoveBlocks);
   }
 
   /**
@@ -367,9 +385,6 @@ public final class MasterWorkerInfo {
       if (mBlocks.contains(blockId)) {
         mToRemoveBlocks.add(blockId);
       }
-      if (mInTransferBlocks.contains(blockId)) {
-        mInTransferBlocks.remove(blockId);
-      }
     } else {
       mToRemoveBlocks.remove(blockId);
     }
@@ -392,8 +407,11 @@ public final class MasterWorkerInfo {
    * Add block in transfer blocks set.
    * @param blockID block id
    */
-  public void updateTransferBlock(long blockID) {
-    mInTransferBlocks.add(blockID);
+  public void updateTransferBlock(long blockID, Transfer transfer) {
+    switch (transfer) {
+      case SENDING: mSendingBlocks.add(blockID); break;
+      case RECEIVING: mReceivingBlocks.add(blockID); break;
+    }
   }
 
   /**

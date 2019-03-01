@@ -346,6 +346,9 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
   /** This caches paths which have been synced with UFS. */
   private final UfsSyncPathCache mUfsSyncPathCache;
 
+  /** Manager inodes' time to live property. */
+  private final TtlManager mTtlManager;
+
   /**
    * The service that checks for inode files with ttl set. We store it here so that it can be
    * accessed from tests.
@@ -409,6 +412,8 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
     mUfsAbsentPathCache = UfsAbsentPathCache.Factory.create(mMountTable);
     mUfsBlockLocationCache = UfsBlockLocationCache.Factory.create(mMountTable);
     mUfsSyncPathCache = new UfsSyncPathCache();
+
+    mTtlManager = new TtlManager();
 
     resetState();
     Metrics.registerGauges(this, mUfsManager);
@@ -2482,6 +2487,7 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
         closer.register(descedant);
       }
       descendants.add(inodePath);
+      DeleteOptions deleteOptions = DeleteOptions.defaults().setAlluxioOnly(true);
       for (LockedInodePath descedant : descendants) {
         Inode<?> freeInode = descedant.getInodeOrNull();
 
@@ -2504,6 +2510,18 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
           }
           // Remove corresponding blocks from workers.
           mBlockMaster.removeBlocks(((InodeFile) freeInode).getBlockIds(), false /* delete */);
+          deleteOptions.setRecursive(false);
+        } else {
+          deleteOptions.setRecursive(true);
+        }
+        // Delete inodes
+        // Do not journal entries covered recursively for performance
+        if (freeInode.getId() == inode.getId()) {
+          mInodeTree.deleteInode(rpcContext, inodePath, opTimeMs, deleteOptions);
+        } else {
+          mInodeTree.deleteInode(
+            new RpcContext(rpcContext.getBlockDeletionContext(), NoopJournalContext.INSTANCE),
+            inodePath, opTimeMs, deleteOptions);
         }
       }
     } finally {
@@ -2761,7 +2779,7 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
     }
 
     try {
-      createFileAndJournal(rpcContext, inodePath, createFileOptions);
+      createFileAndJournal(rpcContext, inodePath, mTtlManager.injectInodeTtl(createFileOptions));
       CompleteFileOptions completeOptions = CompleteFileOptions.defaults().setUfsLength(ufsLength)
           .setUfsStatus(ufsStatus);
       if (ufsLastModified != null) {
@@ -2833,7 +2851,7 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
     }
 
     try {
-      createDirectoryAndJournal(rpcContext, inodePath, createDirectoryOptions);
+      createDirectoryAndJournal(rpcContext, inodePath, mTtlManager.injectInodeTtl(createDirectoryOptions));
       if (inodePath.getLockMode() == InodeTree.LockMode.READ) {
         // If the directory is successfully created, createDirectoryAndJournal will add a write lock
         // to the inodePath's lock list. We are done modifying the directory, so we downgrade it to
