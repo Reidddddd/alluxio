@@ -116,20 +116,21 @@ public class BlockInStream extends InputStream implements BoundedStream, Seekabl
 
     // Short circuit
     if (sourceIsLocal && shortCircuit && !sourceSupportsDomainSocket) {
-      LOG.debug("Creating short circuit input stream for block {} @ {}", blockId, dataSource);
+      LOG.info("Creating short circuit input stream for block {} with size {} @ {}",
+        blockId, blockSize, dataSource.getHost());
       try {
         return createLocalBlockInStream(context, dataSource, blockId, blockSize, options);
       } catch (NotFoundException e) {
         // Failed to do short circuit read because the block is not available in Alluxio.
         // We will try to read via netty. So this exception is ignored.
-        LOG.warn("Failed to create short circuit input stream for block {} @ {}. Falling back to "
-            + "network transfer", blockId, dataSource);
+        LOG.warn("Failed to create short circuit input stream for block {} with size {} @ {}. Falling back to "
+            + "network transfer", blockId, blockSize, dataSource);
       }
     }
 
     // Netty
-    LOG.debug("Creating netty input stream for block {} @ {} from client {} reading through {}",
-        blockId, dataSource, NetworkAddressUtils.getClientHostName(), dataSource);
+    LOG.info("Creating netty input stream for block {} with size {} @ {}",
+        blockId, blockSize, dataSource.getHost());
     return createNettyBlockInStream(context, dataSource, dataSourceType, builder.buildPartial(),
         blockSize, options);
   }

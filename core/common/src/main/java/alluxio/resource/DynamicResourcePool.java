@@ -269,7 +269,7 @@ public abstract class DynamicResourcePool<T> implements Pool<T> {
         }
 
         for (T resource : resourcesToGc) {
-          LOG.info("Resource {} is garbage collected.", resource);
+          LOG.debug("Resource {} is garbage collected.", resource);
           closeResource(resource);
         }
       }
