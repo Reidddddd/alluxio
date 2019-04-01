@@ -115,7 +115,7 @@ public class ChannelPoolMapImpl extends AbstractChannelPoolMap<SocketAddress, Fi
       pipeline.addLast(NettyClient.DECODER);
       pipeline.addLast(new IdleStateHandler(0, heartbeatPeriodMs, 0, TimeUnit.MILLISECONDS));
       pipeline.addLast(new IdleWriteHandler());
-      LOG.debug("Channel {} is created.", channel);
+      LOG.info("Channel {} is created.", channel);
     }
   }
 }

@@ -55,7 +55,7 @@ public final class ThriftUtils {
    * @return a Thrift protocol factory for communicating with server through the transport
    */
   public static TProtocolFactory createThriftProtocolFactory() {
-    return new TBinaryProtocol.Factory(true, true);
+    return new TBinaryProtocol.Factory(false, true);
   }
 
   /**

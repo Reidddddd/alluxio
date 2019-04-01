@@ -40,7 +40,6 @@ import alluxio.thrift.UnmountTOptions;
 import alluxio.wire.FileInfo;
 import alluxio.wire.MountPointInfo;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;

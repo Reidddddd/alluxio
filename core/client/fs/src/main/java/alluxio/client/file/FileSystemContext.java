@@ -516,7 +516,16 @@ public final class FileSystemContext implements Closeable {
           new Gauge<Long>() {
             @Override
             public Long getValue() {
-              return get().mPool.allSize();
+              FileSystemContext c = get();
+              try {
+                return c.mPool.allSize();
+              } finally {
+                try {
+                  c.close();
+                } catch (IOException e) {
+                  LOG.error(e.getMessage());
+                }
+              }
             }
           });
     }

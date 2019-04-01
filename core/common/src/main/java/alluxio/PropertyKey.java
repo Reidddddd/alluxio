@@ -2709,7 +2709,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .build();
   public static final PropertyKey USER_METRICS_COLLECTION_ENABLED =
       new Builder(Name.USER_METRICS_COLLECTION_ENABLED)
-          .setDefaultValue(true)
+          .setDefaultValue(false)
           .setDescription("Enable collecting the client-side metrics and hearbeat them to master")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
           .setScope(Scope.CLIENT)
@@ -2767,7 +2767,7 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .build();
   public static final PropertyKey USER_NETWORK_NETTY_CHANNEL_POOL_SIZE_MAX =
       new Builder(Name.USER_NETWORK_NETTY_CHANNEL_POOL_SIZE_MAX)
-          .setDefaultValue(1024)
+          .setDefaultValue(3)
           .setDescription("The maximum number of netty channels cached in the netty channel "
               + "pool.")
           .setConsistencyCheckLevel(ConsistencyCheckLevel.WARN)
