@@ -16,6 +16,7 @@ import alluxio.Constants;
 import alluxio.exception.FileDoesNotExistException;
 import alluxio.heartbeat.HeartbeatExecutor;
 import alluxio.master.file.meta.Inode;
+import alluxio.master.file.meta.InodeDirectory;
 import alluxio.master.file.meta.InodeTree;
 import alluxio.master.file.meta.LockedInodePath;
 import alluxio.master.file.meta.TtlBucket;
@@ -88,6 +89,14 @@ final class InodeTtlChecker implements HeartbeatExecutor {
                 inode.setTtl(Constants.NO_TTL);
                 inode.setTtlAction(TtlAction.DELETE);
                 mTtlBuckets.remove(inode);
+                // Set parent dir children unloaded.
+                try (LockedInodePath parent =
+                    mInodeTree.lockFullInodePath(inode.getParentId(), InodeTree.LockMode.WRITE)) {
+                  InodeDirectory dir = (InodeDirectory) parent.getInode();
+                  if (dir.isDirectChildrenLoaded()) {
+                    dir.setDirectChildrenLoaded(false);
+                  }
+                }
                 break;
               case DELETE:// Default if not set is DELETE
                 // public delete method will lock the path, and check WRITE permission required at
