@@ -33,17 +33,6 @@ public class TtlManager implements OnlineReconfigObserver {
   }
 
   /**
-   * Inject inode's ttl properties to CreateDirectoryOptions
-   * @param options a CreateDirectoryOptions
-   * @return ttled CreateDirectoryOptions
-   */
-  public CreateDirectoryOptions injectInodeTtl(CreateDirectoryOptions options) {
-    options.setTtl(mTimeToLive);
-    options.setTtlAction(mAction);
-    return options;
-  }
-
-  /**
    * Inject inode's ttl properties to CreateFileOptions
    * @param options a CreateFileOptions
    * @return ttled CreateFileOptions

@@ -54,6 +54,7 @@ final class InodeTtlChecker implements HeartbeatExecutor {
 
   @Override
   public void heartbeat() {
+    LOG.info("Starting INodeTtlChecker...");
     Set<TtlBucket> expiredBuckets = mTtlBuckets.getExpiredBuckets(System.currentTimeMillis());
     for (TtlBucket bucket : expiredBuckets) {
       for (Inode inode : bucket.getInodes()) {

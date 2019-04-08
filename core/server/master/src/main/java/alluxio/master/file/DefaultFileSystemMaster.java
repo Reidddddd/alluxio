@@ -2851,7 +2851,7 @@ public final class DefaultFileSystemMaster extends AbstractMaster implements Fil
     }
 
     try {
-      createDirectoryAndJournal(rpcContext, inodePath, mTtlManager.injectInodeTtl(createDirectoryOptions));
+      createDirectoryAndJournal(rpcContext, inodePath, createDirectoryOptions);
       if (inodePath.getLockMode() == InodeTree.LockMode.READ) {
         // If the directory is successfully created, createDirectoryAndJournal will add a write lock
         // to the inodePath's lock list. We are done modifying the directory, so we downgrade it to
