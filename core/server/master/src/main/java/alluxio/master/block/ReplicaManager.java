@@ -82,13 +82,14 @@ public class ReplicaManager {
       // No need to track one replica block.
       return;
     }
-    if (action == ReplicaAction.TRANSFER) {
-      LOG.info("Block {} in transfer. no need to update RM", blockId);
-      return;
-    }
     createLevelIfNotExisted(currentLevel);
 
     int previousLevel = action == ReplicaAction.PROMOTE ? currentLevel - 1 : currentLevel + 1;
+    if (action == ReplicaAction.TRANSFER) {
+      LOG.info("Block {} in transfer. no need to update RM", blockId);
+      promoteBlockTo(previousLevel, blockId);
+      return;
+    }
     int exactLevel = previousLevel;
     if (!contains(previousLevel, blockId) && previousLevel > ONLY_ONE_REPLICA) {
       LOG.warn("Cannot {} block {} in level {}, because it cannot be founded, "
