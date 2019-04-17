@@ -52,7 +52,11 @@ public class ReplicaManager {
      * EVICT means the replica of a block decrease, so this block is evicted from higher level to
      * lower level.
      */
-    EVICT
+    EVICT,
+    /**
+     * TRANSFER means blocks in transfer.
+     */
+    TRANSFER
   }
 
   /**
@@ -70,12 +74,16 @@ public class ReplicaManager {
    * @param action PROMOTE or EVICT
    */
   public void replicaPromoteOrEvict(long blockId, MasterBlockInfo blockInfo,
-    ReplicaAction action, String worker) {
+      ReplicaAction action, String worker) {
     int currentLevel = blockInfo.getNumLocations();
     if (currentLevel < ONLY_ONE_REPLICA) {
       return;
     } else if (currentLevel == ONLY_ONE_REPLICA && action == ReplicaAction.PROMOTE) {
       // No need to track one replica block.
+      return;
+    }
+    if (action == ReplicaAction.TRANSFER) {
+      LOG.info("Block {} in transfer. no need to update RM");
       return;
     }
     createLevelIfNotExisted(currentLevel);

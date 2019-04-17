@@ -139,7 +139,7 @@ public class BlockBalancer {
           block.removeWorker(sourceID);
           ReplicaManager rm = master.getReplicaManager();
           rm.replicaPromoteOrEvict(blockID, block,
-            ReplicaManager.ReplicaAction.EVICT, sourceWorker.getWorkerAddress().getHost());
+            ReplicaManager.ReplicaAction.TRANSFER, sourceWorker.getWorkerAddress().getHost());
         }
         if (received >= receivable) {
           if (!source.planEmpty()) {
