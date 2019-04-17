@@ -95,9 +95,11 @@ public class BlockBalancer {
         }
         source = mPlans.removeFirst();
       }
+      // 1. Empty plan
       if (source.isEmptyPlan()) {
         return blocksInTransfer;
       }
+      // 2. Pick blocks from source worker
       long sourceID = source.getWorkerID();
       for (Iterator<Map.Entry<Long, Long>> it = source.getBlocksIdSize().entrySet().iterator();
            it.hasNext();) {
@@ -105,20 +107,24 @@ public class BlockBalancer {
         long blockID = bit.getKey();
         long blockSize = bit.getValue();
         MasterBlockInfo block = mBlock.get(blockID);
+        // 2a. Null block (just in case)
         if (block == null) {
           it.remove();
           continue;
         }
+        // 2b. Avoid two same blocks in one worker
         if (block.getBlockLocations().contains(worker)) {
           // if this worker already contains this block,
           // we should avoid all replicas in one worker, just skip.
           continue;
         }
+        // 2c. Block is already in transition (just in case)
         MasterWorkerInfo sourceWorker = master.getWorker(sourceID);
         if (sourceWorker.getBlocksToBeRemoved().contains(blockID)) {
           it.remove();
           continue;
         }
+        // 2d. Block is picked
         received += blockSize;
         // List in format [blockID, blockSize, workerID]
         sourceWorker.updateTransferBlock(blockID, MasterWorkerInfo.Transfer.SENDING);
@@ -127,6 +133,11 @@ public class BlockBalancer {
         blocksInTransfer.addLast(sourceID);
         it.remove();
         worker.updateTransferBlock(blockID, MasterWorkerInfo.Transfer.RECEIVING);
+        // Remove source's location from block, otherwise client read may
+        // locate to source worker where block is deleted.
+        synchronized (block) {
+          block.removeWorker(sourceID);
+        }
         if (received >= receivable) {
           if (!source.planEmpty()) {
             synchronized (mPlans) {

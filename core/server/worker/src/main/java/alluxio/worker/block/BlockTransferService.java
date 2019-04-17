@@ -174,15 +174,12 @@ public class BlockTransferService {
             mBlockWorker.commitBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID);
             LOG.info("Committed {}", block.ID);
           }
-        } catch (InterruptedException | IOException | BlockDoesNotExistException |
-          BlockAlreadyExistsException | InvalidWorkerStateException |
-          WorkerOutOfSpaceException e) {
-          LOG.error("Thread: {}, error: {}.", threadName, e.getMessage());
+        } catch (Exception e) {
+          LOG.error("Thread: {}, peer read error: {}.", threadName, e.getMessage());
           try {
             mBlockWorker.abortBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID);
-          } catch (BlockAlreadyExistsException | BlockDoesNotExistException |
-            InvalidWorkerStateException | IOException ee) {
-            LOG.error("Thread: {}, error: {}.", threadName, ee.getMessage());
+          } catch (Exception ee) {
+            LOG.error("Thread: {}, peer abortion error: {}.", threadName, ee.getMessage());
           }
         } finally {
           if (!block.isEmpty()) {
