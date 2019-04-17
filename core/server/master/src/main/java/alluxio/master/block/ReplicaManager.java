@@ -76,9 +76,7 @@ public class ReplicaManager {
   public void replicaPromoteOrEvict(long blockId, MasterBlockInfo blockInfo,
       ReplicaAction action, String worker) {
     int currentLevel = blockInfo.getNumLocations();
-    if (currentLevel < ONLY_ONE_REPLICA) {
-      return;
-    } else if (currentLevel == ONLY_ONE_REPLICA && action == ReplicaAction.PROMOTE) {
+    if (currentLevel == ONLY_ONE_REPLICA && action == ReplicaAction.PROMOTE) {
       // No need to track one replica block.
       return;
     }

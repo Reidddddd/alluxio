@@ -137,9 +137,9 @@ public class BlockBalancer {
         // locate to source worker where block is deleted.
         synchronized (block) {
           block.removeWorker(sourceID);
-          ReplicaManager rm = master.getReplicaManager();
-          rm.replicaPromoteOrEvict(blockID, block,
-            ReplicaManager.ReplicaAction.TRANSFER, sourceWorker.getWorkerAddress().getHost());
+          // ReplicaManager rm = master.getReplicaManager();
+          // rm.replicaPromoteOrEvict(blockID, block,
+          //  ReplicaManager.ReplicaAction.TRANSFER, sourceWorker.getWorkerAddress().getHost());
         }
         if (received >= receivable) {
           if (!source.planEmpty()) {
