@@ -1428,6 +1428,10 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
     mWorkerRegisteredListeners.add(function);
   }
 
+  public ReplicaManager getReplicaManager() {
+    return mReplicaManager;
+  }
+
   /**
    * Class that contains metrics related to BlockMaster.
    */
