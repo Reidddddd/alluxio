@@ -83,7 +83,7 @@ public class ReplicaManager {
       return;
     }
     if (action == ReplicaAction.TRANSFER) {
-      LOG.info("Block {} in transfer. no need to update RM");
+      LOG.info("Block {} in transfer. no need to update RM", blockId);
       return;
     }
     createLevelIfNotExisted(currentLevel);
