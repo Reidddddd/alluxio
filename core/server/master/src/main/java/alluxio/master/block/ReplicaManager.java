@@ -66,7 +66,7 @@ public class ReplicaManager {
   /**
    * Promote of evict a block between levels.
    * @param blockId block id
-   * @param blockInfo block infomation
+   * @param blockInfo block information
    * @param action PROMOTE or EVICT
    */
   public void replicaPromoteOrEvict(long blockId, MasterBlockInfo blockInfo,
@@ -83,8 +83,8 @@ public class ReplicaManager {
     int previousLevel = action == ReplicaAction.PROMOTE ? currentLevel - 1 : currentLevel + 1;
     int exactLevel = previousLevel;
     if (!contains(previousLevel, blockId) && previousLevel > ONLY_ONE_REPLICA) {
-      LOG.warn("Block {} should be in level {}, but cannot be founded, "
-        + "try to find it in all levels.", blockId, previousLevel);
+      LOG.warn("Cannot {} block {} in level {}, because it cannot be founded, "
+        + "try to find it in all levels.", action, blockId, previousLevel);
       boolean found = false;
       for (int l : getReplicaLevels()) {
         if (contains(l, blockId)) {
