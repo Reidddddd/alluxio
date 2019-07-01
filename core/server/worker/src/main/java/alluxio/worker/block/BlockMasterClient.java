@@ -81,6 +81,30 @@ public final class BlockMasterClient extends AbstractMasterClient {
    * @param tierAlias the alias of the tier the block is being committed to
    * @param blockId the block id being committed
    * @param length the length of the block being committed
+   * @param sourceId the transferd commit block data located workerId
+   */
+  public synchronized void commitBalancedBlock(final long workerId, final long usedBytesOnTier,
+      final String tierAlias, final long blockId, final long length, final long sourceId) throws IOException {
+    retryRPC(new RpcCallable<Void>() {
+      @Override
+      public Void call() throws TException {
+        CommitBlockTOptions cmt = new CommitBlockTOptions();
+        cmt.setSourceId(sourceId);
+        mClient.commitBlock(workerId, usedBytesOnTier, tierAlias, blockId, length,
+                cmt);
+        return null;
+      }
+    });
+  }
+
+  /**
+   * Commits a block on a worker.
+   *
+   * @param workerId the worker id committing the block
+   * @param usedBytesOnTier the amount of used bytes on the tier the block is committing to
+   * @param tierAlias the alias of the tier the block is being committed to
+   * @param blockId the block id being committed
+   * @param length the length of the block being committed
    */
   public synchronized void commitBlock(final long workerId, final long usedBytesOnTier,
       final String tierAlias, final long blockId, final long length) throws IOException {

@@ -138,7 +138,7 @@ public class BlockTransferService {
         }
         LOG.info("Pending block {} from {}", blockID, address);
         try {
-          mRemoteBlocks.put(new PeerBlockInfo(blockID, blockSize, address));
+          mRemoteBlocks.put(new PeerBlockInfo(blockID, blockSize, address, sourceID));
         } catch (InterruptedException e) {
           LOG.warn("Interrupted while pending blocks, {}", e.getMessage());
         }
@@ -164,15 +164,15 @@ public class BlockTransferService {
             LOG.info("Bandwidth excess {}, waiting.", mBandwidthLimit);
           }
           block = mRemoteBlocks.take();
-          LOG.info("Reading block {} from {}", block.ID, block.source.getHostName());
+          LOG.info("Reading Balanced block {} from {}", block.ID, block.source.getHostName());
           currentBytes.addAndGet(block.size);
           mBlockWorker.createBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID, "MEM", block.size);
           try (PeerBlockReader reader = new PeerBlockReader(block.ID, block.size, block.source)) {
             BlockWriter writer = mBlockWorker.getTempBlockWriterRemote(
               Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID);
             BufferUtils.fastCopy(reader.getChannel(), writer.getChannel());
-            mBlockWorker.commitBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID);
-            LOG.info("Committed {}", block.ID);
+            mBlockWorker.commitBalancedBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID, block.sourceId);
+            LOG.info("Committed Balanced Block {} from source worker {}", block.ID, block.source.getHostName());
           }
         } catch (InterruptedException | IOException | BlockDoesNotExistException |
           BlockAlreadyExistsException | InvalidWorkerStateException |
@@ -193,7 +193,7 @@ public class BlockTransferService {
     }
   }
 
-  private final PeerBlockInfo EMPTY = new PeerBlockInfo(-1, -1, null);
+  private final PeerBlockInfo EMPTY = new PeerBlockInfo(-1, -1, null, -1);
 
   /**
    * A POJO stores basic info aboult block's info, id, size, where is it.
@@ -202,15 +202,17 @@ public class BlockTransferService {
     long ID;
     long size;
     InetSocketAddress source;
+    long sourceId;
 
-    PeerBlockInfo(long blockID, long blockSize, InetSocketAddress source) {
+    PeerBlockInfo(long blockID, long blockSize, InetSocketAddress source, long sourceId) {
       this.ID = blockID;
       this.size = blockSize;
       this.source = source;
+      this.sourceId = sourceId;
     }
 
     boolean isEmpty() {
-      return ID == -1 || size == -1 || source == null;
+      return ID == -1 || size == -1 || source == null || sourceId == -1;
     }
   }
 }

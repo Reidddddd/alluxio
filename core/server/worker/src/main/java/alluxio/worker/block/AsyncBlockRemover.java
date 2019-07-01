@@ -69,7 +69,7 @@ public class AsyncBlockRemover {
   public void addBlocksToDelete(List<Long> blocks) {
     for (long id : blocks) {
       if (mRemovingBlocks.contains(id)) {
-        LOG.debug("{} is being removed. Current queue size is {}.", id, mBlocksToRemove.size());
+        LOG.info("{} is being removed. Current queue size is {}.", id, mBlocksToRemove.size());
         continue;
       }
       try {

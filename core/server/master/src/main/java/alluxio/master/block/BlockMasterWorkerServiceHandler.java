@@ -90,6 +90,14 @@ public final class BlockMasterWorkerServiceHandler implements BlockMasterWorkerS
   public CommitBlockTResponse commitBlock(final long workerId, final long usedBytesOnTier,
       final String tierAlias, final long blockId, final long length, CommitBlockTOptions options)
       throws AlluxioTException {
+    if (options.isSetSourceId()) {
+      long sourceId = options.getSourceId();
+      return RpcUtils.call(LOG, (RpcCallableThrowsIOException<CommitBlockTResponse>) () -> {
+          mBlockMaster.commitBalancedBlock(workerId, usedBytesOnTier, tierAlias, blockId, length, sourceId);
+          return new CommitBlockTResponse();
+        }, "CommitBlock", "workerId=%s, usedBytesOnTier=%s, tierAlias=%s, blockId=%s, length=%s, "
+          + "options=%s", workerId, usedBytesOnTier, tierAlias, blockId, length, options);
+    }
     return RpcUtils.call(LOG, (RpcCallableThrowsIOException<CommitBlockTResponse>) () -> {
       mBlockMaster.commitBlock(workerId, usedBytesOnTier, tierAlias, blockId, length);
       return new CommitBlockTResponse();

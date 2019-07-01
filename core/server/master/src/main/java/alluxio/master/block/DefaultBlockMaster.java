@@ -86,7 +86,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -569,6 +568,99 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         .build();
   }
 
+  @Override
+  public void commitBalancedBlock(long workerId, long usedBytesOnTier, String tierAlias, long blockId,
+                          long length, long sourceId) throws NotFoundException, UnavailableException {
+    LOG.debug("Commit balanced block from workerId: {}, usedBytesOnTier: {}, blockId: {}, length: {}, source: {}",
+            workerId, usedBytesOnTier, blockId, length, sourceId);
+
+    MasterWorkerInfo worker = mWorkers.getFirstByField(ID_INDEX, workerId);
+    MasterWorkerInfo sWorker = mWorkers.getFirstByField(ID_INDEX, sourceId);
+    if (worker == null)  {
+      throw new NotFoundException(ExceptionMessage.NO_WORKER_FOUND.getMessage(workerId));
+    }
+
+    if (sWorker == null) {
+      throw new NotFoundException(ExceptionMessage.NO_WORKER_FOUND.getMessage(sourceId));
+    }
+
+    //do source worker block remove
+    synchronized (sWorker) {
+      MasterBlockInfo block = mBlocks.get(blockId);
+      if (block == null) {
+        LOG.error("commitBalanceBlock's MasterBlockInfo with blockId {} can not be null", blockId);
+      } else {
+        synchronized (block) {
+          sWorker.removeBlock(blockId);
+          sWorker.removeNeedBalancedBlocks(blockId);
+          block.removeWorker(sourceId);
+          if (block.getNumLocations() == 0) {
+            mLostBlocks.add(blockId);
+          }
+          mReplicaManager.replicaPromoteOrEvict(blockId, block,
+                  ReplicaManager.ReplicaAction.EVICT, sWorker.getWorkerAddress().getHost());
+        }
+      }
+      LOG.info("Receiver transfer block {} from dest worker {} and remove success on source worker {}", blockId, worker.getWorkerAddress(), sWorker.getWorkerAddress());
+    }
+
+    // Lock the worker metadata first.
+    try (JournalContext journalContext = createJournalContext()) {
+      synchronized (worker) {
+        // Loop until block metadata is successfully locked.
+        while (true) {
+          boolean newBlock = false;
+          MasterBlockInfo block = mBlocks.get(blockId);
+          if (block == null) {
+            // The block metadata doesn't exist yet.
+            block = new MasterBlockInfo(blockId, length);
+            newBlock = true;
+          }
+
+          // Lock the block metadata.
+          synchronized (block) {
+            boolean writeJournal = false;
+            if (newBlock) {
+              if (mBlocks.putIfAbsent(blockId, block) != null) {
+                // Another thread already inserted the metadata for this block, so start loop over.
+                continue;
+              }
+              // Successfully added the new block metadata. Append a journal entry for the new
+              // metadata.
+              writeJournal = true;
+            } else if (block.getLength() != length && block.getLength() == Constants.UNKNOWN_SIZE) {
+              // The block size was previously unknown. Update the block size with the committed
+              // size, and append a journal entry.
+              block.updateLength(length);
+              writeJournal = true;
+            }
+            if (writeJournal) {
+              BlockInfoEntry blockInfo =
+                      BlockInfoEntry.newBuilder().setBlockId(blockId).setLength(length).build();
+              journalContext.append(JournalEntry.newBuilder().setBlockInfo(blockInfo).build());
+            }
+            // At this point, both the worker and the block metadata are locked.
+
+            // Update the block metadata with the new worker location.
+            block.addWorker(workerId, tierAlias);
+            // This worker has this block, so it is no longer lost.
+            mLostBlocks.remove(blockId);
+
+            // Update the worker information for this new block.
+            // TODO(binfan): when retry commitBlock on master is expected, make sure metrics are not
+            // double counted.
+            worker.addBlock(blockId);
+            worker.updateUsedBytes(tierAlias, usedBytesOnTier);
+            worker.updateLastUpdatedTimeMs();
+            mReplicaManager.replicaPromoteOrEvict(blockId, block,
+                    ReplicaManager.ReplicaAction.PROMOTE, worker.getWorkerAddress().getHost());
+          }
+          break;
+        }
+      }
+    }
+  }
+
   // TODO(binfan): check the logic is correct or not when commitBlock is a retry
   @Override
   public void commitBlock(long workerId, long usedBytesOnTier, String tierAlias, long blockId,
@@ -885,14 +977,16 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
           toTransferBlocks.size());
         return new Command(CommandType.Transfer, toTransferBlocks);
       }
+
       List<Long> toRemoveBlocks = worker.getToRemoveBlocks();
+      List<Long> toBalanceRemoveBlocks = worker.getBalancedRemoveBlocks();
+      if (!toBalanceRemoveBlocks.isEmpty()) {
+        toRemoveBlocks.addAll(toBalanceRemoveBlocks);
+      }
       if (toRemoveBlocks.isEmpty()) {
         return new Command(CommandType.Nothing, new ArrayList<Long>());
       }
-      Set<Long> sendingBlocks = worker.getBlocksInTransfer(MasterWorkerInfo.Transfer.SENDING);
-      for (long id : sendingBlocks) {
-        toRemoveBlocks.remove(id);
-      }
+      LOG.info("HeartBeat to remove on host {} size {} content {}:", worker.getWorkerAddress(), toRemoveBlocks.size(), toRemoveBlocks);
       return new Command(CommandType.Free, toRemoveBlocks);
     }
   }
@@ -928,6 +1022,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         // Ideally, the delete/free I/O flow should never reach this point. Because Master may
         // update the block metadata only after receiving the acknowledgement from Workers.
         workerInfo.removeBlock(removedBlockId);
+        workerInfo.removeBalancedBlock(removedBlockId);
         // Continue to remove the remaining blocks.
         continue;
       }

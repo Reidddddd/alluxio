@@ -117,6 +117,21 @@ public interface BlockMaster extends Master, ContainerIdGenerable {
       length) throws NotFoundException, UnavailableException;
 
   /**
+   * Marks a block as balanced committed on a specific worker.
+   * ADD BY MOMO
+   * @param workerId the worker id committing the block
+   * @param usedBytesOnTier the updated used bytes on the tier of the worker
+   * @param tierAlias the alias of the storage tier where the worker is committing the block to
+   * @param blockId the committing block id
+   * @param length the length of the block
+   * @Param sourceId the source workerid the balanced block located.
+   * @throws NotFoundException if the workerId is not active
+   */
+  void commitBalancedBlock(long workerId, long usedBytesOnTier, String tierAlias, long blockId, long
+          length, long sourceId) throws NotFoundException, UnavailableException;
+
+
+  /**
    * Marks a block as committed, but without a worker location. This means the block is only in ufs.
    *
    * @param blockId the id of the block to commit

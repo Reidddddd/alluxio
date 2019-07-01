@@ -86,6 +86,23 @@ public interface BlockWorker extends Worker, SessionCleanable {
       throws BlockAlreadyExistsException, BlockDoesNotExistException, InvalidWorkerStateException,
       IOException, WorkerOutOfSpaceException;
 
+    /**
+     * Commits a balance tranferd block to Alluxio managed space. The block must be temporary. The block is persisted
+     * after {@link BlockStore#commitBlock(long, long)}. The block will not be accessible until
+     * {@link BlockMasterClient#commitBalancedBlock(long, long, String, long, long, long)} succeeds.
+     *
+     * @param sessionId the id of the client
+     * @param blockId the id of the block to commit
+     * @param sourceId the id of the source woker id in master
+     * @throws BlockAlreadyExistsException if blockId already exists in committed blocks
+     * @throws BlockDoesNotExistException if the temporary block cannot be found
+     * @throws InvalidWorkerStateException if blockId does not belong to sessionId
+     * @throws WorkerOutOfSpaceException if there is no more space left to hold the block
+     */
+    void commitBalancedBlock(long sessionId, long blockId, long sourceId)
+            throws BlockAlreadyExistsException, BlockDoesNotExistException, InvalidWorkerStateException,
+            IOException, WorkerOutOfSpaceException;
+
   /**
    * Creates a block in Alluxio managed space. The block will be temporary until it is committed.
    * Throws an {@link IllegalArgumentException} if the location does not belong to tiered storage.

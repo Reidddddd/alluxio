@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockTOptions, CommitBlockTOptions._Fields>, java.io.Serializable, Cloneable, Comparable<CommitBlockTOptions> {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("CommitBlockTOptions");
 
+  private static final org.apache.thrift.protocol.TField SOURCE_ID_FIELD_DESC = new org.apache.thrift.protocol.TField("sourceId", org.apache.thrift.protocol.TType.I64, (short)1);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -45,10 +46,11 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
     schemes.put(TupleScheme.class, new CommitBlockTOptionsTupleSchemeFactory());
   }
 
+  public long sourceId; // optional
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-;
+    SOURCE_ID((short)1, "sourceId");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -63,6 +65,8 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
      */
     public static _Fields findByThriftId(int fieldId) {
       switch(fieldId) {
+        case 1: // SOURCE_ID
+          return SOURCE_ID;
         default:
           return null;
       }
@@ -101,9 +105,16 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
       return _fieldName;
     }
   }
+
+  // isset id assignments
+  private static final int __SOURCEID_ISSET_ID = 0;
+  private byte __isset_bitfield = 0;
+  private static final _Fields optionals[] = {_Fields.SOURCE_ID};
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.SOURCE_ID, new org.apache.thrift.meta_data.FieldMetaData("sourceId", org.apache.thrift.TFieldRequirementType.OPTIONAL, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
     metaDataMap = Collections.unmodifiableMap(tmpMap);
     org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(CommitBlockTOptions.class, metaDataMap);
   }
@@ -115,6 +126,8 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
    * Performs a deep copy on <i>other</i>.
    */
   public CommitBlockTOptions(CommitBlockTOptions other) {
+    __isset_bitfield = other.__isset_bitfield;
+    this.sourceId = other.sourceId;
   }
 
   public CommitBlockTOptions deepCopy() {
@@ -123,15 +136,51 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
 
   @Override
   public void clear() {
+    setSourceIdIsSet(false);
+    this.sourceId = 0;
+  }
+
+  public long getSourceId() {
+    return this.sourceId;
+  }
+
+  public CommitBlockTOptions setSourceId(long sourceId) {
+    this.sourceId = sourceId;
+    setSourceIdIsSet(true);
+    return this;
+  }
+
+  public void unsetSourceId() {
+    __isset_bitfield = EncodingUtils.clearBit(__isset_bitfield, __SOURCEID_ISSET_ID);
+  }
+
+  /** Returns true if field sourceId is set (has been assigned a value) and false otherwise */
+  public boolean isSetSourceId() {
+    return EncodingUtils.testBit(__isset_bitfield, __SOURCEID_ISSET_ID);
+  }
+
+  public void setSourceIdIsSet(boolean value) {
+    __isset_bitfield = EncodingUtils.setBit(__isset_bitfield, __SOURCEID_ISSET_ID, value);
   }
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
+    case SOURCE_ID:
+      if (value == null) {
+        unsetSourceId();
+      } else {
+        setSourceId((Long)value);
+      }
+      break;
+
     }
   }
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
+    case SOURCE_ID:
+      return getSourceId();
+
     }
     throw new IllegalStateException();
   }
@@ -143,6 +192,8 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
     }
 
     switch (field) {
+    case SOURCE_ID:
+      return isSetSourceId();
     }
     throw new IllegalStateException();
   }
@@ -160,12 +211,26 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
     if (that == null)
       return false;
 
+    boolean this_present_sourceId = true && this.isSetSourceId();
+    boolean that_present_sourceId = true && that.isSetSourceId();
+    if (this_present_sourceId || that_present_sourceId) {
+      if (!(this_present_sourceId && that_present_sourceId))
+        return false;
+      if (this.sourceId != that.sourceId)
+        return false;
+    }
+
     return true;
   }
 
   @Override
   public int hashCode() {
     List<Object> list = new ArrayList<Object>();
+
+    boolean present_sourceId = true && (isSetSourceId());
+    list.add(present_sourceId);
+    if (present_sourceId)
+      list.add(sourceId);
 
     return list.hashCode();
   }
@@ -178,6 +243,16 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
 
     int lastComparison = 0;
 
+    lastComparison = Boolean.valueOf(isSetSourceId()).compareTo(other.isSetSourceId());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetSourceId()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.sourceId, other.sourceId);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     return 0;
   }
 
@@ -198,6 +273,11 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
     StringBuilder sb = new StringBuilder("CommitBlockTOptions(");
     boolean first = true;
 
+    if (isSetSourceId()) {
+      sb.append("sourceId:");
+      sb.append(this.sourceId);
+      first = false;
+    }
     sb.append(")");
     return sb.toString();
   }
@@ -217,6 +297,8 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
 
   private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
     try {
+      // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+      __isset_bitfield = 0;
       read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
     } catch (org.apache.thrift.TException te) {
       throw new java.io.IOException(te);
@@ -241,6 +323,14 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
           break;
         }
         switch (schemeField.id) {
+          case 1: // SOURCE_ID
+            if (schemeField.type == org.apache.thrift.protocol.TType.I64) {
+              struct.sourceId = iprot.readI64();
+              struct.setSourceIdIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
           default:
             org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
         }
@@ -256,6 +346,11 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
+      if (struct.isSetSourceId()) {
+        oprot.writeFieldBegin(SOURCE_ID_FIELD_DESC);
+        oprot.writeI64(struct.sourceId);
+        oprot.writeFieldEnd();
+      }
       oprot.writeFieldStop();
       oprot.writeStructEnd();
     }
@@ -273,11 +368,24 @@ public class CommitBlockTOptions implements org.apache.thrift.TBase<CommitBlockT
     @Override
     public void write(org.apache.thrift.protocol.TProtocol prot, CommitBlockTOptions struct) throws org.apache.thrift.TException {
       TTupleProtocol oprot = (TTupleProtocol) prot;
+      BitSet optionals = new BitSet();
+      if (struct.isSetSourceId()) {
+        optionals.set(0);
+      }
+      oprot.writeBitSet(optionals, 1);
+      if (struct.isSetSourceId()) {
+        oprot.writeI64(struct.sourceId);
+      }
     }
 
     @Override
     public void read(org.apache.thrift.protocol.TProtocol prot, CommitBlockTOptions struct) throws org.apache.thrift.TException {
       TTupleProtocol iprot = (TTupleProtocol) prot;
+      BitSet incoming = iprot.readBitSet(1);
+      if (incoming.get(0)) {
+        struct.sourceId = iprot.readI64();
+        struct.setSourceIdIsSet(true);
+      }
     }
   }
 
