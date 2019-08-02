@@ -217,7 +217,7 @@ public class BlockInStream extends InputStream implements BoundedStream, Seekabl
     long packetSize =
       Configuration.getBytes(PropertyKey.USER_NETWORK_NETTY_READER_PACKET_SIZE_BYTES);
     Protocol.ReadRequest readRequest = Protocol.ReadRequest.newBuilder().setBlockId(blockId)
-      .setTransfer(true).setPacketSize(packetSize).buildPartial();
+      .setPacketSize(packetSize).buildPartial();
     PacketReader.Factory factory = new NettyPacketReader.Factory(context, address,
       readRequest.toBuilder().buildPartial());
     return new BlockInStream(factory, address, blockSource, blockId, blockSize);

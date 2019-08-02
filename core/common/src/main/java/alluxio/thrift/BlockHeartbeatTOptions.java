@@ -168,9 +168,8 @@ public class BlockHeartbeatTOptions implements org.apache.thrift.TBase<BlockHear
     return this.metrics;
   }
 
-  public BlockHeartbeatTOptions setMetrics(List<alluxio.thrift.Metric> metrics) {
+  public void setMetrics(List<alluxio.thrift.Metric> metrics) {
     this.metrics = metrics;
-    return this;
   }
 
   public void unsetMetrics() {
@@ -373,8 +372,6 @@ public class BlockHeartbeatTOptions implements org.apache.thrift.TBase<BlockHear
         iprot.readFieldEnd();
       }
       iprot.readStructEnd();
-
-      // check for required fields of primitive type, which can't be checked in the validate method
       struct.validate();
     }
 

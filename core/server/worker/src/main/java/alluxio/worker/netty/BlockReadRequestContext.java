@@ -23,7 +23,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 @NotThreadSafe
 public final class BlockReadRequestContext extends ReadRequestContext<BlockReadRequest> {
   private BlockReader mBlockReader;
-  private boolean mBlockDeleted = false;
 
   /**
    * @param request read request in proto
@@ -45,20 +44,5 @@ public final class BlockReadRequestContext extends ReadRequestContext<BlockReadR
    */
   public void setBlockReader(BlockReader blockReader) {
     mBlockReader = blockReader;
-  }
-
-  /**
-   * Set block is deleted, this is used in block transfer.
-   */
-  public void setBlockDeleted() {
-    mBlockDeleted = true;
-  }
-
-  /**
-   * If block is deleted.
-   * @return true if it is, false otherwise
-   */
-  public boolean blockDeleted() {
-    return mBlockDeleted;
   }
 }

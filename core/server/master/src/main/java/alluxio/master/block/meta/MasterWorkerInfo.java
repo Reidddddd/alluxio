@@ -1,4 +1,3 @@
-
 /*
  * The Alluxio Open Foundation licenses this work under the Apache License, version 2.0
  * (the "License"). You may not use this work except in compliance with the License, which is
@@ -72,6 +71,8 @@ public final class MasterWorkerInfo {
   private Set<Long> mBlocks;
   /** ids of blocks the worker should remove. */
   private Set<Long> mToRemoveBlocks;
+  private Set<Long> mBalancedToRemoveBlocks;
+  private Set<Long> mNeedBalancedBlocks;
   /** ids of blocks in transfer. */
   private Set<Long> mReceivingBlocks;
   /** ids of blocks in pending. */
@@ -98,6 +99,8 @@ public final class MasterWorkerInfo {
     mUsedBytesOnTiers = new HashMap<>();
     mBlocks = new HashSet<>();
     mToRemoveBlocks = ConcurrentHashMap.newKeySet();
+    mBalancedToRemoveBlocks = ConcurrentHashMap.newKeySet();
+    mNeedBalancedBlocks = ConcurrentHashMap.newKeySet();
     mReceivingBlocks = ConcurrentHashMap.newKeySet();
     mSendingBlocks = ConcurrentHashMap.newKeySet();
   }
@@ -120,7 +123,7 @@ public final class MasterWorkerInfo {
     // ordering, throw an error
     for (int i = 0; i < storageTierAliases.size() - 1; i++) {
       if (globalStorageTierAssoc.getOrdinal(storageTierAliases.get(i)) >= globalStorageTierAssoc
-          .getOrdinal(storageTierAliases.get(i + 1))) {
+              .getOrdinal(storageTierAliases.get(i + 1))) {
         throw new IllegalArgumentException(
             "Worker cannot place storage tier " + storageTierAliases.get(i) + " above "
                 + storageTierAliases.get(i + 1) + " in the hierarchy");
@@ -299,6 +302,29 @@ public final class MasterWorkerInfo {
     return new ArrayList<>(mToRemoveBlocks);
   }
 
+  public void removeBalancedBlock(long blockId) {
+    mBalancedToRemoveBlocks.remove(blockId);
+  }
+  /**
+   * @return ids of blocks the worker should remove
+   */
+  public List<Long> getBalancedRemoveBlocks() {
+    return new ArrayList<>(mBalancedToRemoveBlocks);
+  }
+
+  public void removeNeedBalancedBlocks(long blockId) {
+    mNeedBalancedBlocks.remove(blockId);
+    mBalancedToRemoveBlocks.add(blockId);
+  }
+
+  public Set<Long> getNeedBalancedBlocks() {
+    return new HashSet<>(mNeedBalancedBlocks);
+  }
+
+  public void addNeedBalancedBlocks(Long blk) {
+    mNeedBalancedBlocks.add(blk);
+  }
+
   /**
    * @return ids of blocks to be removed
    */
@@ -363,8 +389,8 @@ public final class MasterWorkerInfo {
   @Override
   public String toString() {
     return Objects.toStringHelper(this).add("id", mId).add("workerAddress", mWorkerAddress)
-        .add("capacityBytes", mCapacityBytes).add("usedBytes", mUsedBytes)
-        .add("lastUpdatedTimeMs", mLastUpdatedTimeMs).add("blocks", mBlocks).toString();
+            .add("capacityBytes", mCapacityBytes).add("usedBytes", mUsedBytes)
+            .add("lastUpdatedTimeMs", mLastUpdatedTimeMs).add("blocks", mBlocks).toString();
   }
 
   /**

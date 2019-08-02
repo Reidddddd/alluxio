@@ -289,6 +289,38 @@ public final class DefaultBlockWorker extends AbstractWorker implements BlockWor
   }
 
   @Override
+  public void commitBalancedBlock(long sessionId, long blockId, long sourceId)
+          throws BlockAlreadyExistsException, BlockDoesNotExistException, InvalidWorkerStateException,
+          IOException, WorkerOutOfSpaceException {
+    // NOTE: this may be invoked multiple times due to retry on client side.
+    try {
+      mBlockStore.commitBlock(sessionId, blockId);
+    } catch (BlockAlreadyExistsException e) {
+      LOG.debug("Block {} has been in block store, this could be a retry due to master-side RPC "
+              + "failure, therefore ignore the exception", blockId, e);
+    }
+
+    // Block successfully committed, update master with new block metadata
+    Long lockId = mBlockStore.lockBlock(sessionId, blockId);
+    BlockMasterClient blockMasterClient = mBlockMasterClientPool.acquire();
+    try {
+      BlockMeta meta = mBlockStore.getBlockMeta(sessionId, blockId, lockId);
+      BlockStoreLocation loc = meta.getBlockLocation();
+      Long length = meta.getBlockSize();
+      BlockStoreMeta storeMeta = mBlockStore.getBlockStoreMeta();
+      Long bytesUsedOnTier = storeMeta.getUsedBytesOnTiers().get(loc.tierAlias());
+      blockMasterClient.commitBalancedBlock(mWorkerId.get(), bytesUsedOnTier, loc.tierAlias(), blockId,
+              length, sourceId);
+      LOG.info("Commit Balanced Block {} on dest host {} with length {}", blockId, mAddress, length);
+    } catch (Exception e) {
+      throw new IOException(ExceptionMessage.FAILED_COMMIT_BLOCK_TO_MASTER.getMessage(blockId), e);
+    } finally {
+      mBlockMasterClientPool.release(blockMasterClient);
+      mBlockStore.unlockBlock(lockId);
+    }
+  }
+
+  @Override
   public void commitBlock(long sessionId, long blockId)
       throws BlockAlreadyExistsException, BlockDoesNotExistException, InvalidWorkerStateException,
       IOException, WorkerOutOfSpaceException {

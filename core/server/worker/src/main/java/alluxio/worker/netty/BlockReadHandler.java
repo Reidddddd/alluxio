@@ -99,22 +99,6 @@ public final class BlockReadHandler extends AbstractReadHandler<BlockReadRequest
           context.setBlockReader(null);
         }
       }
-      if (context.getRequest().isTransfer()) {
-        if (context.blockDeleted()) {
-          LOG.info("Block {} is deleted.", context.getRequest().getId());
-        } else {
-          try {
-            LOG.info("Deleting block {}.", context.getRequest().getId());
-            mWorker.removeBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, context.getRequest().getId());
-            LOG.info("Transferred and deleted block {}.", context.getRequest().getId());
-          } catch (Exception e) {
-            LOG.warn("Thread {} failed to delete block {} with reason {}.",
-              Thread.currentThread().getName(),
-              context.getRequest().getId(),
-              e.getMessage());
-          }
-        }
-      }
     }
 
     @Override
@@ -167,7 +151,7 @@ public final class BlockReadHandler extends AbstractReadHandler<BlockReadRequest
       RetryPolicy retryPolicy = new TimeoutRetry(UFS_BLOCK_OPEN_TIMEOUT_MS, retryInterval);
       while (retryPolicy.attempt()) {
         long lockId;
-        if (request.isPersisted() || request.isTransfer()) {
+        if (request.isPersisted()) {
           lockId = mWorker.lockBlockNoException(request.getSessionId(), request.getId());
         } else {
           lockId = mWorker.lockBlock(request.getSessionId(), request.getId());
@@ -188,11 +172,6 @@ public final class BlockReadHandler extends AbstractReadHandler<BlockReadRequest
             mWorker.unlockBlock(lockId);
             throw e;
           }
-        }
-
-        if (request.isTransfer()) {
-          context.setBlockDeleted();
-          return;
         }
 
         // When the block does not exist in Alluxio but exists in UFS, try to open the UFS block.

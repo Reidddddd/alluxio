@@ -55,7 +55,6 @@ public final class MasterBlockInfo {
     // TODO(gene): Check valid length?
     mBlockId = blockId;
     mLength = length;
-
     mWorkerIdToAlias = new HashMap<>();
   }
 

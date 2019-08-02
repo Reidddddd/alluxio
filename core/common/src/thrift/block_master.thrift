@@ -143,11 +143,14 @@ service BlockMasterClientService extends common.AlluxioService {
 struct BlockHeartbeatTOptions {
   1: list<common.Metric> metrics
 }
+
 struct BlockHeartbeatTResponse {
   1: common.Command command
 }
 
-struct CommitBlockTOptions {}
+struct CommitBlockTOptions {
+  1: optional i64 sourceId
+}
 struct CommitBlockTResponse {}
 
 struct GetWorkerIdTOptions {}

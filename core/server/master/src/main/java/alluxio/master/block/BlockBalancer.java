@@ -114,8 +114,9 @@ public class BlockBalancer {
           // we should avoid all replicas in one worker, just skip.
           continue;
         }
+        //change block state to transfering
         MasterWorkerInfo sourceWorker = master.getWorker(sourceID);
-        if (sourceWorker.getBlocksToBeRemoved().contains(blockID)) {
+        if (sourceWorker.getBlocksToBeRemoved().contains(blockID) || sourceWorker.getBalancedRemoveBlocks().contains(blockID)) {
           it.remove();
           continue;
         }
@@ -157,7 +158,8 @@ public class BlockBalancer {
     SourcePlan sp = new SourcePlan(sender.getId());
     long sizeOfPlan = 0L;
     // Already in transfer blocks and to be removed blocks should be excluded.
-    Set<Long> blocksCanBeSent = Sets.difference(sender.getBlocks(), sender.getBlocksToBeRemoved());
+    Set<Long> tmpBlocksCanBeSent = Sets.difference(sender.getBlocks(), sender.getBlocksToBeRemoved());
+    Set<Long> blocksCanBeSent = Sets.difference(tmpBlocksCanBeSent, sender.getNeedBalancedBlocks()); 
     for (long bid : blocksCanBeSent) {
       MasterBlockInfo block = mBlock.get(bid);
       if (block == null) {
@@ -165,6 +167,7 @@ public class BlockBalancer {
       }
       long size = block.getLength();
       sp.addBlockInfo(bid, size);
+      sender.addNeedBalancedBlocks(bid);
       sizeOfPlan += size;
       if (sizeOfPlan >= approximateSize) {
         break;

@@ -178,10 +178,11 @@ public final class BlockMasterSync implements HeartbeatExecutor {
         break;
       // Master requests blocks to be removed from Alluxio managed space.
       case Free:
+        LOG.info("Received free request {}", cmd.getData());
         mAsyncBlockRemover.addBlocksToDelete(cmd.getData());
         break;
       case Transfer:
-        LOG.debug("Received transfer request {}", cmd.getData());
+        LOG.info("Received transfer request {}", cmd.getData());
         mBlockTransferService.transferBlocksToLocal(cmd.getData());
         break;
     // No action required
