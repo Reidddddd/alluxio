@@ -594,11 +594,6 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
           sWorker.removeBlock(blockId);
           sWorker.removeNeedBalancedBlocks(blockId);
           block.removeWorker(sourceId);
-          if (block.getNumLocations() == 0) {
-            mLostBlocks.add(blockId);
-          }
-          mReplicaManager.replicaPromoteOrEvict(blockId, block,
-                  ReplicaManager.ReplicaAction.EVICT, sWorker.getWorkerAddress().getHost());
         }
       }
       LOG.info("Receiver transfer block {} from dest worker {} and remove success on source worker {}", blockId, worker.getWorkerAddress(), sWorker.getWorkerAddress());
@@ -1014,6 +1009,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
     }
     for (long removedBlockId : removedBlockIds) {
       MasterBlockInfo block = mBlocks.get(removedBlockId);
+      workerInfo.removeBalancedBlock(removedBlockId);
       // TODO(calvin): Investigate if this branching logic can be simplified.
       if (block == null) {
         // LOG.warn("Worker {} informs the removed block {}, but block metadata does not exist"
@@ -1022,7 +1018,6 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         // Ideally, the delete/free I/O flow should never reach this point. Because Master may
         // update the block metadata only after receiving the acknowledgement from Workers.
         workerInfo.removeBlock(removedBlockId);
-        workerInfo.removeBalancedBlock(removedBlockId);
         // Continue to remove the remaining blocks.
         continue;
       }

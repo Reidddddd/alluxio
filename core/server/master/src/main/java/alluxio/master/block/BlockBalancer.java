@@ -158,7 +158,8 @@ public class BlockBalancer {
     SourcePlan sp = new SourcePlan(sender.getId());
     long sizeOfPlan = 0L;
     // Already in transfer blocks and to be removed blocks should be excluded.
-    Set<Long> blocksCanBeSent = Sets.difference(sender.getBlocks(), sender.getNeedBalancedBlocks());
+    Set<Long> tmpBlocksCanBeSent = Sets.difference(sender.getBlocks(), sender.getBlocksToBeRemoved());
+    Set<Long> blocksCanBeSent = Sets.difference(tmpBlocksCanBeSent, sender.getNeedBalancedBlocks()); 
     for (long bid : blocksCanBeSent) {
       MasterBlockInfo block = mBlock.get(bid);
       if (block == null) {
