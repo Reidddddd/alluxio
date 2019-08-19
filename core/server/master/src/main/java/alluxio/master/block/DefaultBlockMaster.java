@@ -591,12 +591,11 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         LOG.error("commitBalanceBlock's MasterBlockInfo with blockId {} can not be null", blockId);
       } else {
         synchronized (block) {
-          sWorker.removeBlock(blockId);
+          sWorker.updateToRemovedBlock(true, blockId);
           sWorker.removeNeedBalancedBlocks(blockId);
-          block.removeWorker(sourceId);
         }
       }
-      LOG.info("Receiver transfer block {} from dest worker {} and remove success on source worker {}", blockId, worker.getWorkerAddress(), sWorker.getWorkerAddress());
+      LOG.debug("Receiver transfer block {} from dest worker {} and remove success on source worker {}", blockId, worker.getWorkerAddress(), sWorker.getWorkerAddress());
     }
 
     // Lock the worker metadata first.
@@ -981,7 +980,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       if (toRemoveBlocks.isEmpty()) {
         return new Command(CommandType.Nothing, new ArrayList<Long>());
       }
-      LOG.info("HeartBeat to remove on host {} size {} content {}:", worker.getWorkerAddress(), toRemoveBlocks.size(), toRemoveBlocks);
+      LOG.debug("HeartBeat to remove on host {} size {} content {}:", worker.getWorkerAddress(), toRemoveBlocks.size(), toRemoveBlocks);
       return new Command(CommandType.Free, toRemoveBlocks);
     }
   }
