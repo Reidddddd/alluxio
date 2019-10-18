@@ -69,6 +69,12 @@ public class BlockBalancer {
     mReceivers.addAll(keySet);
   }
 
+  public void printPlanDetail() {
+    for (SourcePlan sp : mPlans) {
+      LOG.warn("SourcePlan information {}", sp.toString());
+    }
+  }
+
   public boolean isAllPlanDispatched() {
     /** denote the balance plans are all dispatched.*/
     synchronized (mPlans) {
@@ -240,6 +246,14 @@ public class BlockBalancer {
 
     boolean isEmptyPlan() {
       return workerID == -1;
+    }
+
+    @Override
+    public String toString() {
+      return "SourcePlan{" +
+              "workerID=" + workerID +
+              ", blocksIdSize=" + blocksIdSize.size() +
+              '}';
     }
   }
 }

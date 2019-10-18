@@ -1376,7 +1376,11 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
 
     @Override
     public void heartbeat() {
-      if (executionFlag) {
+      if (!mBlockBalancer.isAllPlanDispatched()) {
+        LOG.warn("BlockBalancer plan has not finished");
+        mBlockBalancer.printPlanDetail();
+      }
+      if (executionFlag && mBlockBalancer.isAllPlanDispatched()) {
         LOG.info("Running {}", toString());
         // a. snapshot
         Map<Long, Long> usedBytes = new HashMap<>();
@@ -1399,6 +1403,8 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
           if (perWorkerUsed.getValue() > avgUsed + deltaSize) {
             aboveAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
           } else if (perWorkerUsed.getValue() < avgUsed - deltaSize) {
+            belowAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
+          } else if (perWorkerUsed.getValue() < avgUsed) {
             belowAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
           }
         }
