@@ -75,6 +75,12 @@ public class BlockBalancer {
     }
   }
 
+  public boolean isReceiverEmpty() {
+    /** denote the balance receiver has finished.*/
+    return mReceivers.isEmpty();
+  }
+
+
   public boolean isAllPlanDispatched() {
     /** denote the balance plans are all dispatched.*/
     synchronized (mPlans) {
@@ -144,12 +150,10 @@ public class BlockBalancer {
         if (received >= receivable) {
           if (!source.planEmpty()) {
             // delete the remaining blocks (fiinish cluster balanced state need go through multiple transfer plan generate and iterate)
-            source.blocksIdSize.clear();
-            /** 
+            //source.blocksIdSize.clear();
             synchronized (mPlans) {
               mPlans.addFirst(source);
             }
-            */
           }
           return blocksInTransfer;
         }
