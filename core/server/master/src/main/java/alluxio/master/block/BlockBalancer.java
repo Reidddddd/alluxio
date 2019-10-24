@@ -206,8 +206,10 @@ public class BlockBalancer {
       sender.getWorkerAddress().getHost(),
       skipNum);
 
-    synchronized (mPlans) {
-      mPlans.add(sp);
+    if (sizeOfPlan > 0) {
+      synchronized (mPlans) {
+        mPlans.add(sp);
+      }
     }
   }
 
