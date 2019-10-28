@@ -1381,6 +1381,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         mBlockBalancer.printPlanDetail();
       }
       if (executionFlag && (mBlockBalancer.isAllPlanDispatched() || mBlockBalancer.isReceiverEmpty())) {
+        int balancedHost = 0;
         LOG.info("Running {}", toString());
         // a. snapshot
         Map<Long, Long> usedBytes = new HashMap<>();
@@ -1400,6 +1401,27 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         Map<Long, Long> belowAvgHeap = new TreeMap<>(ascend);
         Map<Long, Long> aboveAvgHeap = new TreeMap<>(descend);
         for (Map.Entry<Long, Long> perWorkerUsed : usedBytes.entrySet()) {
+          long avgDiff = perWorkerUsed.getValue() - avgUsed;
+          long thresholdDiff = Math.abs(avgDiff) - deltaSize;
+          if (avgDiff > 0) {
+            if (thresholdDiff > 0) {
+              aboveAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
+            } else {
+              //do nothing within threshold don't need to balance
+              balancedHost += 1;
+            }
+          } else {
+            if (thresholdDiff > 0) {
+              belowAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
+            } else {
+              //do nothing within threshold don't need to balance
+              balancedHost += 1;
+            }
+          }
+        }
+        LOG.info("Number of workers Balanced {}, Above {}, Below {}", balancedHost, aboveAvgHeap.size(), belowAvgHeap.size());
+        /**
+        for (Map.Entry<Long, Long> perWorkerUsed : usedBytes.entrySet()) {
           if (perWorkerUsed.getValue() > avgUsed + deltaSize) {
             aboveAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
           } else if (perWorkerUsed.getValue() < Math.abs(avgUsed - deltaSize)) {
@@ -1408,8 +1430,13 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         }
         LOG.info("Number of workers below average {}.", belowAvgHeap.size());
         LOG.info("Number of workers above average {}.", aboveAvgHeap.size());
+        */
         mBlockBalancer.setReceiver(belowAvgHeap.keySet());
-        // d. create plan for sender
+        // d. already generated transfer plan need to process first, so just return after found receiver list;
+        if (!mBlockBalancer.isAllPlanDispatched()) {
+          return;
+        }
+        // e. create plan for sender
         for (Map.Entry<Long, Long> sources : aboveAvgHeap.entrySet()) {
           MasterWorkerInfo sender = mWorkers.getFirstByField(ID_INDEX, sources.getKey());
           long approximateSize = sources.getValue() - avgUsed;

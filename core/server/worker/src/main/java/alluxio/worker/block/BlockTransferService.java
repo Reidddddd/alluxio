@@ -167,12 +167,22 @@ public class BlockTransferService {
           LOG.info("Reading Balanced block {} from {}", block.ID, block.source.getHostName());
           currentBytes.addAndGet(block.size);
           mBlockWorker.createBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID, "MEM", block.size);
-          try (PeerBlockReader reader = new PeerBlockReader(block.ID, block.size, block.source)) {
-            BlockWriter writer = mBlockWorker.getTempBlockWriterRemote(
+          PeerBlockReader reader = null;
+          BlockWriter writer = null;
+          try {
+            reader = new PeerBlockReader(block.ID, block.size, block.source);
+            writer = mBlockWorker.getTempBlockWriterRemote(
               Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID);
             BufferUtils.fastCopy(reader.getChannel(), writer.getChannel());
             mBlockWorker.commitBalancedBlock(Sessions.TRANSFER_BLOCK_SESSION_ID, block.ID, block.sourceId);
             LOG.info("Committed Balanced Block {} from source worker {}", block.ID, block.source.getHostName());
+          } finally {
+            if (writer != null) {
+              writer.close();
+            }
+            if (reader != null) {
+              reader.close();
+            }
           }
         } catch (InterruptedException | IOException | BlockDoesNotExistException |
           BlockAlreadyExistsException | InvalidWorkerStateException |
