@@ -30,6 +30,7 @@ import alluxio.metrics.MetricsSystem;
 import alluxio.proto.dataserver.Protocol;
 import alluxio.retry.ExponentialTimeBoundedRetry;
 import alluxio.retry.RetryUtils;
+import alluxio.security.authentication.KerberosUtil;
 import alluxio.thrift.BlockWorkerClientService;
 import alluxio.underfs.UfsManager;
 import alluxio.util.CommonUtils;
@@ -126,8 +127,11 @@ public final class DefaultBlockWorker extends AbstractWorker implements BlockWor
    * @param ufsManager ufs manager
    */
   DefaultBlockWorker(UfsManager ufsManager) {
-    this(new BlockMasterClientPool(), new FileSystemMasterClient(MasterClientConfig.defaults()),
-        new Sessions(), new TieredBlockStore(), ufsManager);
+    this(new BlockMasterClientPool(),
+      new FileSystemMasterClient(KerberosUtil.isSecurityEnable() ?
+        MasterClientConfig.defaults().withSubject(KerberosUtil.getJvmSubject()) :
+        MasterClientConfig.defaults()),
+      new Sessions(), new TieredBlockStore(), ufsManager);
   }
 
   /**

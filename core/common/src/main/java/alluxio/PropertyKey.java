@@ -3088,6 +3088,27 @@ public final class PropertyKey implements Comparable<PropertyKey> {
           .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
           .setScope(Scope.CLIENT)
           .build();
+  public static final PropertyKey SECURITY_CLIENT_JAAS_LOGIN_CONTEXT =
+      new Builder(Name.SECURITY_CLIENT_JAAS_LOGIN_CONTEXT)
+          .setDescription("Context name of JAAS file.")
+          .setDefaultValue("Client")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setScope(Scope.CLIENT)
+          .build();
+  public static final PropertyKey SECURITY_SASL_SERVICE_NAME =
+      new Builder(Name.SECURITY_SASL_SERVICE_NAME)
+          .setDefaultValue("alluxio")
+          .setDescription("In kerberos mode, the service name of servers")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setScope(Scope.SERVER)
+          .build();
+  public static final PropertyKey SECURITY_SERVER_JAAS_LOGIN_CONTEXT =
+    new Builder(Name.SECURITY_SERVER_JAAS_LOGIN_CONTEXT)
+          .setDescription("Context name of JAAS file.")
+          .setDefaultValue("Server")
+          .setConsistencyCheckLevel(ConsistencyCheckLevel.ENFORCE)
+          .setScope(Scope.SERVER)
+          .build();
 
   //
   // Mesos and Yarn related properties
@@ -3841,6 +3862,11 @@ public final class PropertyKey implements Comparable<PropertyKey> {
     public static final String SECURITY_LOGIN_IMPERSONATION_USERNAME =
         "alluxio.security.login.impersonation.username";
     public static final String SECURITY_LOGIN_USERNAME = "alluxio.security.login.username";
+    public static final String SECURITY_CLIENT_JAAS_LOGIN_CONTEXT =
+        "alluxio.security.client.jaas.login.context";
+    public static final String SECURITY_SASL_SERVICE_NAME = "alluxio.security.sasl.service.name";
+    public static final String SECURITY_SERVER_JAAS_LOGIN_CONTEXT =
+        "alluxio.security.server.jaas.login.context";
 
     //
     // JVM Monitor related properties

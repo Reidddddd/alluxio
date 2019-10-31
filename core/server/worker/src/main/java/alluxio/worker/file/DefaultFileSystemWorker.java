@@ -18,6 +18,7 @@ import alluxio.Server;
 import alluxio.heartbeat.HeartbeatContext;
 import alluxio.heartbeat.HeartbeatThread;
 import alluxio.master.MasterClientConfig;
+import alluxio.security.authentication.KerberosUtil;
 import alluxio.thrift.FileSystemWorkerClientService;
 import alluxio.underfs.UfsManager;
 import alluxio.util.CommonUtils;
@@ -81,7 +82,11 @@ public final class DefaultFileSystemWorker extends AbstractWorker implements Fil
         mUfsManager);
 
     // Setup AbstractMasterClient
-    mFileSystemMasterWorkerClient = new FileSystemMasterClient(MasterClientConfig.defaults());
+    MasterClientConfig clientConfig = MasterClientConfig.defaults();
+    if (KerberosUtil.isSecurityEnable()) {
+      clientConfig.withSubject(KerberosUtil.getJvmSubject());
+    }
+    mFileSystemMasterWorkerClient = new FileSystemMasterClient(clientConfig);
 
     mServiceHandler = new FileSystemWorkerClientServiceHandler();
   }

@@ -20,8 +20,10 @@ import alluxio.master.journal.JournalSystem;
 import alluxio.metrics.MetricsSystem;
 import alluxio.metrics.sink.MetricsServlet;
 import alluxio.metrics.sink.PrometheusMetricsServlet;
-import alluxio.network.thrift.BootstrapServerTransport;
 import alluxio.network.thrift.ThriftUtils;
+import alluxio.security.authentication.GssKrbServerCallbackHandler;
+import alluxio.security.authentication.KerberosUtil;
+import alluxio.security.authentication.KrbLogin;
 import alluxio.security.authentication.TransportProvider;
 import alluxio.underfs.UnderFileSystem;
 import alluxio.underfs.UnderFileSystemConfiguration;
@@ -50,12 +52,14 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
+import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import javax.security.auth.Subject;
 
 /**
  * This class encapsulates the different master services that are configured to run.
@@ -147,6 +151,13 @@ public class AlluxioMasterProcess implements MasterProcess {
             this + " rpc port is only allowed to be zero in test mode.");
         Preconditions.checkState(Configuration.getInt(PropertyKey.MASTER_WEB_PORT) > 0,
             this + " web port is only allowed to be zero in test mode.");
+      }
+
+      // Security login
+      if (KerberosUtil.isSecurityEnable()) {
+        String context = Configuration.get(PropertyKey.SECURITY_SERVER_JAAS_LOGIN_CONTEXT);
+        KrbLogin login = new KrbLogin(context, new GssKrbServerCallbackHandler());
+        KerberosUtil.setSubject(login.getSubject());
       }
 
       mTransportProvider = TransportProvider.Factory.create();
@@ -373,8 +384,8 @@ public class AlluxioMasterProcess implements MasterProcess {
     TTransportFactory transportFactory;
     try {
       String serverName = NetworkAddressUtils.getConnectHost(ServiceType.MASTER_RPC);
-      transportFactory = new BootstrapServerTransport.Factory(
-          mTransportProvider.getServerTransportFactory(serverName));
+      transportFactory = KerberosUtil.wrapTransportFactoryWithSubject(
+        mTransportProvider.getServerTransportFactory(serverName));
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

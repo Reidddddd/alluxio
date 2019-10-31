@@ -20,8 +20,10 @@ import alluxio.metrics.MetricsSystem;
 import alluxio.metrics.sink.MetricsServlet;
 import alluxio.metrics.sink.PrometheusMetricsServlet;
 import alluxio.network.ChannelType;
-import alluxio.network.thrift.BootstrapServerTransport;
 import alluxio.network.thrift.ThriftUtils;
+import alluxio.security.authentication.GssKrbServerCallbackHandler;
+import alluxio.security.authentication.KerberosUtil;
+import alluxio.security.authentication.KrbLogin;
 import alluxio.security.authentication.TransportProvider;
 import alluxio.underfs.UfsManager;
 import alluxio.underfs.WorkerUfsManager;
@@ -119,6 +121,15 @@ public final class AlluxioWorkerProcess implements WorkerProcess {
     mTieredIdentitiy = tieredIdentity;
     try {
       mStartTimeMs = System.currentTimeMillis();
+
+      // Security Login.
+      if (KerberosUtil.isSecurityEnable()) {
+        LOG.info("Kerberos is on.");
+        String context = Configuration.get(PropertyKey.SECURITY_SERVER_JAAS_LOGIN_CONTEXT);
+        KrbLogin login = new KrbLogin(context, new GssKrbServerCallbackHandler());
+        KerberosUtil.setSubject(login.getSubject());
+      }
+
       mUfsManager = new WorkerUfsManager();
       mRegistry = new WorkerRegistry();
       List<Callable<Void>> callables = new ArrayList<>();
@@ -332,8 +343,8 @@ public final class AlluxioWorkerProcess implements WorkerProcess {
     TTransportFactory transportFactory;
     try {
       String serverName = NetworkAddressUtils.getConnectHost(ServiceType.WORKER_RPC);
-      transportFactory = new BootstrapServerTransport.Factory(mTransportProvider
-          .getServerTransportFactory(serverName));
+      transportFactory = KerberosUtil.wrapTransportFactoryWithSubject(
+        mTransportProvider.getServerTransportFactory(serverName));
     } catch (IOException e) {
       throw Throwables.propagate(e);
     }

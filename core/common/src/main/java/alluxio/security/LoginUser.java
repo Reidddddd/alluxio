@@ -15,6 +15,9 @@ import alluxio.Configuration;
 import alluxio.PropertyKey;
 import alluxio.exception.status.UnauthenticatedException;
 import alluxio.security.authentication.AuthType;
+import alluxio.security.authentication.KerberosName;
+import alluxio.security.authentication.KerberosUtil;
+import alluxio.security.authentication.KrbLogin;
 import alluxio.security.login.AppLoginModule;
 import alluxio.security.login.LoginModuleConfiguration;
 
@@ -57,7 +60,15 @@ public final class LoginUser {
     if (sLoginUser == null) {
       synchronized (LoginUser.class) {
         if (sLoginUser == null) {
-          sLoginUser = login();
+          if (KerberosUtil.isSecurityEnable()) {
+            User user = new User(
+              KerberosUtil.getClientName(
+                KerberosUtil.getJvmSubject()));
+            sLoginUser = user;
+            LOG.info("Kerberos Login user is {}", user);
+          } else {
+            sLoginUser = login();
+          }
         }
       }
     }

@@ -22,11 +22,15 @@ import alluxio.client.block.RetryHandlingBlockMasterClient;
 import alluxio.client.file.RetryHandlingFileSystemMasterClient;
 import alluxio.conf.Source;
 import alluxio.master.MasterClientConfig;
+import alluxio.security.authentication.EmptyClientCallbackHandler;
+import alluxio.security.authentication.KerberosUtil;
+import alluxio.security.authentication.KrbLogin;
 import alluxio.util.ConfigurationUtils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.security.auth.login.LoginException;
 import java.util.Map;
 
 /**
@@ -59,6 +63,15 @@ public final class FileSystemAdminShell extends AbstractShell {
     }
     // Reduce the RPC retry max duration to fall earlier for CLIs
     Configuration.set(PropertyKey.USER_RPC_RETRY_MAX_DURATION, "5s", Source.DEFAULT);
+    if (KerberosUtil.isSecurityEnable()) {
+      String context = Configuration.get(PropertyKey.SECURITY_CLIENT_JAAS_LOGIN_CONTEXT);
+      try {
+        KrbLogin login = new KrbLogin(context, new EmptyClientCallbackHandler());
+        KerberosUtil.setSubject(login.getSubject());
+      } catch (LoginException e) {
+        throw new RuntimeException(e);
+      }
+    }
     FileSystemAdminShell fsAdminShell = new FileSystemAdminShell();
     System.exit(fsAdminShell.run(args));
   }
@@ -70,12 +83,19 @@ public final class FileSystemAdminShell extends AbstractShell {
 
   @Override
   protected Map<String, Command> loadCommands() {
-    Context context = new Context(
-        new RetryHandlingFileSystemMasterClient(MasterClientConfig.defaults()),
-        new RetryHandlingBlockMasterClient(MasterClientConfig.defaults()),
-        new RetryHandlingMetaMasterClient(MasterClientConfig.defaults()),
-        System.out
-    );
+    Context context = new Context(new RetryHandlingFileSystemMasterClient(
+      KerberosUtil.isSecurityEnable() ?
+        MasterClientConfig.defaults().withSubject(KerberosUtil.getJvmSubject()) :
+        MasterClientConfig.defaults()
+    ), new RetryHandlingBlockMasterClient(
+      KerberosUtil.isSecurityEnable() ?
+        MasterClientConfig.defaults().withSubject(KerberosUtil.getJvmSubject()) :
+        MasterClientConfig.defaults()
+    ), new RetryHandlingMetaMasterClient(
+      KerberosUtil.isSecurityEnable() ?
+        MasterClientConfig.defaults().withSubject(KerberosUtil.getJvmSubject()) :
+        MasterClientConfig.defaults()
+    ), System.out);
     return CommandUtils.loadCommands(FileSystemAdminShell.class.getPackage().getName(),
         new Class[] {Context.class}, new Object[] {context});
   }

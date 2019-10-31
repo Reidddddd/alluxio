@@ -26,6 +26,7 @@ import alluxio.network.thrift.ThriftUtils;
 import alluxio.retry.ExponentialTimeBoundedRetry;
 import alluxio.retry.RetryPolicy;
 import alluxio.security.LoginUser;
+import alluxio.security.authentication.KerberosUtil;
 import alluxio.security.authentication.TransportProvider;
 import alluxio.thrift.AlluxioService;
 import alluxio.thrift.AlluxioTException;
@@ -196,8 +197,8 @@ public abstract class AbstractClient implements Client {
       LOG.info("Alluxio client (version {}) is trying to bootstrap-connect with {}",
           RuntimeConstants.VERSION, mAddress);
       // A plain socket transport to bootstrap
-      TSocket socket = ThriftUtils.createThriftSocket(mAddress);
-      TTransport bootstrapTransport = new BootstrapClientTransport(socket);
+      TTransport bootstrapTransport = KerberosUtil.wrapTransportWithSubject(
+        TransportProvider.Factory.create().getClientTransport(mParentSubject, mAddress));
       TProtocol protocol = ThriftUtils.createThriftProtocol(bootstrapTransport,
           Constants.META_MASTER_CLIENT_SERVICE_NAME);
       List<ConfigProperty> clusterConfig;
@@ -253,8 +254,8 @@ public abstract class AbstractClient implements Client {
     LOG.info("Alluxio client (version {}) is trying to connect with {} @ {}",
         RuntimeConstants.VERSION, getServiceName(), mAddress);
     // The wrapper transport
-    TTransport clientTransport =
-        TransportProvider.Factory.create().getClientTransport(mParentSubject, mAddress);
+    TTransport clientTransport = KerberosUtil.wrapTransportWithSubject(
+        TransportProvider.Factory.create().getClientTransport(mParentSubject, mAddress));
     mProtocol = ThriftUtils.createThriftProtocol(clientTransport, getServiceName());
     mProtocol.getTransport().open();
     LOG.info("Client registered with {} @ {}", getServiceName(), mAddress);

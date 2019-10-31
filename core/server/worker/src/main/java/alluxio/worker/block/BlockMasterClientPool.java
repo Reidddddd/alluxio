@@ -16,6 +16,7 @@ import alluxio.PropertyKey;
 import alluxio.master.MasterClientConfig;
 import alluxio.resource.ResourcePool;
 
+import alluxio.security.authentication.KerberosUtil;
 import com.google.common.io.Closer;
 
 import java.io.IOException;
@@ -53,7 +54,11 @@ public final class BlockMasterClientPool extends ResourcePool<BlockMasterClient>
 
   @Override
   protected BlockMasterClient createNewResource() {
-    BlockMasterClient client = new BlockMasterClient(MasterClientConfig.defaults());
+    MasterClientConfig clientConfig = MasterClientConfig.defaults();
+    if (KerberosUtil.isSecurityEnable()) {
+      clientConfig.withSubject(KerberosUtil.getJvmSubject());
+    }
+    BlockMasterClient client = new BlockMasterClient(clientConfig);
     mClientList.add(client);
     return client;
   }

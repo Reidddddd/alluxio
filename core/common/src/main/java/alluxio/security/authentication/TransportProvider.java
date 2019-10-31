@@ -17,6 +17,8 @@ import alluxio.exception.status.UnauthenticatedException;
 
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 
@@ -28,6 +30,8 @@ import javax.security.sasl.SaslException;
  * of authentication.
  */
 public interface TransportProvider {
+  Logger LOG = LoggerFactory.getLogger(TransportProvider.class);
+
   /**
    * Factory for {@code TransportProvider}.
    */
@@ -47,6 +51,7 @@ public interface TransportProvider {
     public static TransportProvider create() {
       AuthType authType =
           Configuration.getEnum(PropertyKey.SECURITY_AUTHENTICATION_TYPE, AuthType.class);
+      LOG.info("AuthType {}", authType);
       switch (authType) {
         case NOSASL:
           return new NoSaslTransportProvider();
@@ -54,8 +59,7 @@ public interface TransportProvider {
         case CUSTOM:
           return new PlainSaslTransportProvider();
         case KERBEROS:
-          throw new UnsupportedOperationException(
-              "getClientTransport: Kerberos is not supported currently.");
+          return new GssapiTransportProvider();
         default:
           throw new UnsupportedOperationException(
               "getClientTransport: Unsupported authentication type: " + authType.getAuthName());

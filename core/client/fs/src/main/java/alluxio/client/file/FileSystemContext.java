@@ -28,6 +28,9 @@ import alluxio.metrics.MetricsSystem;
 import alluxio.network.netty.ChannelPoolMapImpl;
 import alluxio.network.netty.NettyClient;
 import alluxio.resource.CloseableResource;
+import alluxio.security.authentication.EmptyClientCallbackHandler;
+import alluxio.security.authentication.KerberosUtil;
+import alluxio.security.authentication.KrbLogin;
 import alluxio.util.CommonUtils;
 import alluxio.util.ThreadFactoryUtils;
 import alluxio.util.ThreadUtils;
@@ -58,6 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.security.auth.Subject;
+import javax.security.auth.login.LoginException;
 
 /**
  * A shared context that isolates all operations within a {@link FileSystem}. Usually, one user
@@ -123,7 +127,16 @@ public final class FileSystemContext implements Closeable {
    * @return the instance of file system context with no subject associated
    */
   public static FileSystemContext get() {
-    return get(null);
+    if (KerberosUtil.isSecurityEnable() && KerberosUtil.getJvmSubject() == null) {
+      String context = Configuration.get(PropertyKey.SECURITY_CLIENT_JAAS_LOGIN_CONTEXT);
+      try {
+        KrbLogin login = new KrbLogin(context, new EmptyClientCallbackHandler());
+        KerberosUtil.setSubject(login.getSubject());
+      } catch (LoginException e) {
+        throw new RuntimeException(e);
+      }
+    }
+    return KerberosUtil.isSecurityEnable() ? get(KerberosUtil.getJvmSubject()) : get(null);
   }
 
   /**
