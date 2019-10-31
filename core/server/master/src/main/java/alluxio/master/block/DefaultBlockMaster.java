@@ -591,12 +591,11 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         LOG.error("commitBalanceBlock's MasterBlockInfo with blockId {} can not be null", blockId);
       } else {
         synchronized (block) {
-          sWorker.removeBlock(blockId);
+          sWorker.updateToRemovedBlock(true, blockId);
           sWorker.removeNeedBalancedBlocks(blockId);
-          block.removeWorker(sourceId);
         }
       }
-      LOG.info("Receiver transfer block {} from dest worker {} and remove success on source worker {}", blockId, worker.getWorkerAddress(), sWorker.getWorkerAddress());
+      LOG.debug("Receiver transfer block {} from dest worker {} and remove success on source worker {}", blockId, worker.getWorkerAddress(), sWorker.getWorkerAddress());
     }
 
     // Lock the worker metadata first.
@@ -981,7 +980,7 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
       if (toRemoveBlocks.isEmpty()) {
         return new Command(CommandType.Nothing, new ArrayList<Long>());
       }
-      LOG.info("HeartBeat to remove on host {} size {} content {}:", worker.getWorkerAddress(), toRemoveBlocks.size(), toRemoveBlocks);
+      LOG.debug("HeartBeat to remove on host {} size {} content {}:", worker.getWorkerAddress(), toRemoveBlocks.size(), toRemoveBlocks);
       return new Command(CommandType.Free, toRemoveBlocks);
     }
   }
@@ -1377,7 +1376,12 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
 
     @Override
     public void heartbeat() {
-      if (executionFlag) {
+      if (!mBlockBalancer.isAllPlanDispatched()) {
+        LOG.warn("BlockBalancer plan has not finished");
+        mBlockBalancer.printPlanDetail();
+      }
+      if (executionFlag && (mBlockBalancer.isAllPlanDispatched() || mBlockBalancer.isReceiverEmpty())) {
+        int balancedHost = 0;
         LOG.info("Running {}", toString());
         // a. snapshot
         Map<Long, Long> usedBytes = new HashMap<>();
@@ -1397,16 +1401,42 @@ public final class DefaultBlockMaster extends AbstractMaster implements BlockMas
         Map<Long, Long> belowAvgHeap = new TreeMap<>(ascend);
         Map<Long, Long> aboveAvgHeap = new TreeMap<>(descend);
         for (Map.Entry<Long, Long> perWorkerUsed : usedBytes.entrySet()) {
+          long avgDiff = perWorkerUsed.getValue() - avgUsed;
+          long thresholdDiff = Math.abs(avgDiff) - deltaSize;
+          if (avgDiff > 0) {
+            if (thresholdDiff > 0) {
+              aboveAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
+            } else {
+              //do nothing within threshold don't need to balance
+              balancedHost += 1;
+            }
+          } else {
+            if (thresholdDiff > 0) {
+              belowAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
+            } else {
+              //do nothing within threshold don't need to balance
+              balancedHost += 1;
+            }
+          }
+        }
+        LOG.info("Number of workers Balanced {}, Above {}, Below {}", balancedHost, aboveAvgHeap.size(), belowAvgHeap.size());
+        /**
+        for (Map.Entry<Long, Long> perWorkerUsed : usedBytes.entrySet()) {
           if (perWorkerUsed.getValue() > avgUsed + deltaSize) {
             aboveAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
-          } else if (perWorkerUsed.getValue() < avgUsed - deltaSize) {
+          } else if (perWorkerUsed.getValue() < Math.abs(avgUsed - deltaSize)) {
             belowAvgHeap.put(perWorkerUsed.getKey(), perWorkerUsed.getValue());
           }
         }
         LOG.info("Number of workers below average {}.", belowAvgHeap.size());
         LOG.info("Number of workers above average {}.", aboveAvgHeap.size());
+        */
         mBlockBalancer.setReceiver(belowAvgHeap.keySet());
-        // d. create plan for sender
+        // d. already generated transfer plan need to process first, so just return after found receiver list;
+        if (!mBlockBalancer.isAllPlanDispatched()) {
+          return;
+        }
+        // e. create plan for sender
         for (Map.Entry<Long, Long> sources : aboveAvgHeap.entrySet()) {
           MasterWorkerInfo sender = mWorkers.getFirstByField(ID_INDEX, sources.getKey());
           long approximateSize = sources.getValue() - avgUsed;

@@ -71,7 +71,9 @@ public final class MasterWorkerInfo {
   private Set<Long> mBlocks;
   /** ids of blocks the worker should remove. */
   private Set<Long> mToRemoveBlocks;
+  // ids of blocks finished balance block need to be removed
   private Set<Long> mBalancedToRemoveBlocks;
+  // ids of blocks need to be balanced
   private Set<Long> mNeedBalancedBlocks;
   /** ids of blocks in transfer. */
   private Set<Long> mReceivingBlocks;

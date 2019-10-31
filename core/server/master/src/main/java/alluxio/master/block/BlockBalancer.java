@@ -69,6 +69,25 @@ public class BlockBalancer {
     mReceivers.addAll(keySet);
   }
 
+  public void printPlanDetail() {
+    for (SourcePlan sp : mPlans) {
+      LOG.warn("SourcePlan information {}", sp.toString());
+    }
+  }
+
+  public boolean isReceiverEmpty() {
+    /** denote the balance receiver has finished.*/
+    return mReceivers.isEmpty();
+  }
+
+
+  public boolean isAllPlanDispatched() {
+    /** denote the balance plans are all dispatched.*/
+    synchronized (mPlans) {
+      return mPlans.isEmpty();
+    }
+  }
+
   /**
    * Get a list of blocks info [blockId, blockSize, workerId]. Worker with this will know where to read
    * blocks.
@@ -130,6 +149,8 @@ public class BlockBalancer {
         worker.updateTransferBlock(blockID, MasterWorkerInfo.Transfer.RECEIVING);
         if (received >= receivable) {
           if (!source.planEmpty()) {
+            // delete the remaining blocks (fiinish cluster balanced state need go through multiple transfer plan generate and iterate)
+            //source.blocksIdSize.clear();
             synchronized (mPlans) {
               mPlans.addFirst(source);
             }
@@ -157,12 +178,18 @@ public class BlockBalancer {
   public void generateTransferPlan(MasterWorkerInfo sender, long approximateSize) {
     SourcePlan sp = new SourcePlan(sender.getId());
     long sizeOfPlan = 0L;
+    long skipNum = 0L;
     // Already in transfer blocks and to be removed blocks should be excluded.
     Set<Long> tmpBlocksCanBeSent = Sets.difference(sender.getBlocks(), sender.getBlocksToBeRemoved());
     Set<Long> blocksCanBeSent = Sets.difference(tmpBlocksCanBeSent, sender.getNeedBalancedBlocks()); 
     for (long bid : blocksCanBeSent) {
       MasterBlockInfo block = mBlock.get(bid);
       if (block == null) {
+        continue;
+      }
+      if (sender.getNeedBalancedBlocks().contains(bid)) {
+        // skip the block has been added to balancePlan, don't need transfer again.
+        skipNum++;
         continue;
       }
       long size = block.getLength();
@@ -173,13 +200,16 @@ public class BlockBalancer {
         break;
       }
     }
-    LOG.info("Plan to transfer {} blocks with size {}MB from {}",
+    LOG.info("Plan to transfer {} blocks with size {}MB from {}, skipNum {}",
       blocksCanBeSent.size(),
       (sizeOfPlan / Constants.MB),
-      sender.getWorkerAddress().getHost());
+      sender.getWorkerAddress().getHost(),
+      skipNum);
 
-    synchronized (mPlans) {
-      mPlans.add(sp);
+    if (sizeOfPlan > 0) {
+      synchronized (mPlans) {
+        mPlans.add(sp);
+      }
     }
   }
 
@@ -222,6 +252,14 @@ public class BlockBalancer {
 
     boolean isEmptyPlan() {
       return workerID == -1;
+    }
+
+    @Override
+    public String toString() {
+      return "SourcePlan{" +
+              "workerID=" + workerID +
+              ", blocksIdSize=" + blocksIdSize.size() +
+              '}';
     }
   }
 }
